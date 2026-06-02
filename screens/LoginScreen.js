@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
+  StatusBar ,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

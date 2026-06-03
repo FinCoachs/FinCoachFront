@@ -51,7 +51,7 @@ const BUDGETS = [
     total: 100,
     unit: 'k',
     percentage: 45,
-    color: '#ffd08e',
+    color: '#ffd08e'   ,
   },
   {
     id: 'transport',

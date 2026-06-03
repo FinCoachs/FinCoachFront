@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   View,
   Text,
@@ -10,9 +9,10 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { COLORS, SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { BottomNavBar } from '../src/components';
 
 const { width } = Dimensions.get('window');
 const CHART_WIDTH = width - SPACING.marginX * 2 - 40;
@@ -93,14 +93,6 @@ const TRANSACTIONS = [
     amount: -12000,
     isExpense: true,
   },
-];
-
-const NAV_ITEMS = [
-  { id: 'home',         label: 'Accueil',      lib: 'ionicons',  icon: 'home' },
-  { id: 'transactions', label: 'Transactions',  lib: 'community', icon: 'receipt-outline' },
-  { id: 'budget',       label: 'Budget',        lib: 'ionicons',  icon: 'wallet-outline' },
-  { id: 'coach',        label: 'Coach IA',      lib: 'community', icon: 'robot-outline' },
-  { id: 'profile',      label: 'Profil',        lib: 'ionicons',  icon: 'person-outline' },
 ];
 
 // ============================================
@@ -272,45 +264,10 @@ const TransactionItem = ({ transaction, isLast }) => (
 );
 
 // ============================================
-// BOTTOM NAVIGATION
-// ============================================
-
-const NavIcon = ({ item, isActive }) => {
-  const color = isActive ? COLORS.primary : 'rgba(186, 203, 190, 0.6)';
-  if (item.lib === 'community') {
-    return <MaterialCommunityIcons name={item.icon} size={24} color={color} />;
-  }
-  return <Ionicons name={item.icon} size={24} color={color} />;
-};
-
-const BottomNav = ({ activeTab, onTabPress }) => (
-  <View style={styles.bottomNav}>
-    {NAV_ITEMS.map((item) => {
-      const isActive = activeTab === item.id;
-      return (
-        <TouchableOpacity
-          key={item.id}
-          style={styles.navItem}
-          onPress={() => onTabPress(item.id)}
-          activeOpacity={0.8}
-        >
-          <NavIcon item={item} isActive={isActive} />
-          <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-            {item.label}
-          </Text>
-          {isActive && <View style={styles.navDot} />}
-        </TouchableOpacity>
-      );
-    })}
-  </View>
-);
-
-// ============================================
 // MAIN SCREEN
 // ============================================
 
 export const DashboardScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('home');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -381,7 +338,7 @@ export const DashboardScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      <BottomNav activeTab={activeTab} onTabPress={setActiveTab} />
+      <BottomNavBar activeScreen="Dashboard" navigation={navigation} />
     </SafeAreaView>
   );
 };
@@ -679,42 +636,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  // ── Bottom Navigation ────────────────────────
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: 64,
-    backgroundColor: 'rgba(12, 19, 34, 0.9)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    position: 'relative',
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: 'rgba(186, 203, 190, 0.6)',
-    marginTop: 2,
-  },
-  navLabelActive: {
-    color: COLORS.primary,
-  },
-  navDot: {
-    position: 'absolute',
-    bottom: 2,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.primary,
-  },
 });
 
 export default DashboardScreen;

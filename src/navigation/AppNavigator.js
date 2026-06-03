@@ -1,7 +1,15 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { WelcomeScreen, SignupScreen, LoginScreen, ProfileSetupScreen, DashboardScreen } from '../../screens';
+import {
+  WelcomeScreen,
+  SignupScreen,
+  LoginScreen,
+  ProfileSetupScreen,
+  DashboardScreen,
+  TransactionsScreen,
+  AddTransactionScreen,
+} from '../../screens';
 import { COLORS } from '../constants/theme';
 
 const Stack = createNativeStackNavigator();
@@ -22,6 +30,8 @@ export const AppNavigator = () => {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
+        <Stack.Screen name="Transactions" component={TransactionsScreen} />
+        <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

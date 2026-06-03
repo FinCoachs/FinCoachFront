@@ -5,3 +5,4 @@ export { ProfileSetupScreen } from './ProfileSetupScreen';
 export { DashboardScreen } from './DashboardScreen';
 export { TransactionsScreen } from './TransactionsScreen';
 export { AddTransactionScreen } from './AddTransactionScreen';
+export { BudgetScreen } from './BudgetScreen';

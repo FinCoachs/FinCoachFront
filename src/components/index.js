@@ -3,3 +3,4 @@ export { Input } from './Input';
 export { GlassCard } from './GlassCard';
 export { SocialButton } from './SocialButton';
 export { BottomNavBar } from './BottomNavBar';
+export { CategoryModal } from './CategoryModal';

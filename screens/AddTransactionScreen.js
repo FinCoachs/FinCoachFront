@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { useCategories } from '../src/context/CategoriesContext';
 
 const { width } = Dimensions.get('window');
 
@@ -23,15 +24,6 @@ const MOCK_BUDGET = 450_000;
 // DATA
 // ============================================
 
-const EXPENSE_CATEGORIES = [
-  'Alimentation', 'Transport', 'Shopping',
-  'Logement', 'Loisirs', 'Santé', 'Autre',
-];
-
-const INCOME_CATEGORIES = [
-  'Salaire', 'Transfert', 'Vente',
-  'Dividendes', 'Cadeau', 'Rembours.', 'Bonus', 'Loyer', 'Autre',
-];
 
 const SOURCES = [
   { id: 'banque',    label: 'Banque',    sub: 'BOA ... 8821', icon: 'bank-outline',  lib: 'community' },
@@ -93,12 +85,18 @@ const SourceCard = ({ source, isSelected, onPress }) => (
   </TouchableOpacity>
 );
 
-const CategoryChip = ({ label, isActive, onPress }) => (
+const CategoryChip = ({ label, color, isActive, onPress }) => (
   <TouchableOpacity
-    style={[styles.chip, isActive ? styles.chipActive : styles.chipInactive]}
+    style={[
+      styles.chip,
+      isActive
+        ? [styles.chipActive, { borderColor: color }]
+        : styles.chipInactive,
+    ]}
     onPress={onPress}
     activeOpacity={0.8}
   >
+    <View style={[styles.chipDot, { backgroundColor: color }]} />
     <Text style={[styles.chipText, isActive ? styles.chipTextActive : styles.chipTextInactive]}>
       {label}
     </Text>
@@ -142,21 +140,35 @@ const NumPad = ({ onPress }) => (
 // ============================================
 
 export const AddTransactionScreen = ({ navigation }) => {
+  const { categories: allCategories } = useCategories();
+
   const [type, setType]               = useState('depense');
   const [source, setSource]           = useState('banque');
   const [rawAmount, setRawAmount]     = useState('');
   const [description, setDescription] = useState('');
   const [numpadVisible, setNumpadVisible] = useState(false);
 
-  const categories = type === 'depense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-  const [category, setCategory] = useState(categories[0]);
+  // Catégories filtrées selon le type de transaction courant
+  const filteredCategories = useMemo(
+    () => allCategories.filter((c) =>
+      type === 'depense' ? c.type === 'depense' : c.type === 'entree'
+    ),
+    [allCategories, type],
+  );
+
+  const [category, setCategory] = useState(
+    () => allCategories.filter((c) => c.type === 'depense')[0]?.libelle || '',
+  );
 
   const scrollRef = useRef(null);
 
   // ── Type toggle ───────────────────────────
   const handleTypeChange = (newType) => {
     setType(newType);
-    setCategory((newType === 'depense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES)[0]);
+    const cats = allCategories.filter((c) =>
+      newType === 'depense' ? c.type === 'depense' : c.type === 'entree'
+    );
+    setCategory(cats[0]?.libelle || '');
   };
 
   // ── Numpad logic ──────────────────────────
@@ -303,17 +315,15 @@ export const AddTransactionScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Catégorie</Text>
           <View style={styles.chipsWrap}>
-            {categories.map((cat) => (
+            {filteredCategories.map((cat) => (
               <CategoryChip
-                key={cat}
-                label={cat}
-                isActive={category === cat}
-                onPress={() => setCategory(cat)}
+                key={cat.id}
+                label={cat.libelle}
+                color={cat.color}
+                isActive={category === cat.libelle}
+                onPress={() => setCategory(cat.libelle)}
               />
             ))}
-            <TouchableOpacity style={styles.chipAdd} activeOpacity={0.8}>
-              <Text style={styles.chipAddText}>+ Ajouter</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -630,21 +640,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
   },
+  chipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   chipText: { fontSize: 13, fontWeight: '500' },
   chipTextActive: { color: '#ffffff', fontWeight: '700' },
   chipTextInactive: { color: COLORS.textSecondary },
-  chipAdd: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  chipAddText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.4)',
-  },
 
   // ── Description ────────────────────────────
   inputWrap: {

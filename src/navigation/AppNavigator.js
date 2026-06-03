@@ -9,6 +9,7 @@ import {
   DashboardScreen,
   TransactionsScreen,
   AddTransactionScreen,
+  BudgetScreen,
 } from '../../screens';
 import { COLORS } from '../constants/theme';
 
@@ -32,6 +33,7 @@ export const AppNavigator = () => {
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
         <Stack.Screen name="Transactions" component={TransactionsScreen} />
         <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
+        <Stack.Screen name="Budget" component={BudgetScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -41,7 +41,7 @@ const NAV_ITEMS = [
 ];
 
 // Écrans réellement implémentés dans le navigateur
-const IMPLEMENTED = ['Dashboard', 'Transactions'];
+const IMPLEMENTED = ['Dashboard', 'Transactions', 'Budget'];
 
 const NavIcon = ({ item, isActive }) => {
   const color = isActive ? COLORS.primary : 'rgba(186, 203, 190, 0.5)';

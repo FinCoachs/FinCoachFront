@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
 
@@ -99,6 +99,11 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 16,
     paddingHorizontal: SPACING.md,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      },
+    }),
   },
   eyeButton: {
     paddingRight: SPACING.md,

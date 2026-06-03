@@ -15,6 +15,7 @@ import { Button, Input, GlassCard } from '../src/components';
 
 export const SignupScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
+    lastName: '',
     firstName: '',
     email: '',
     phone: '',
@@ -22,12 +23,56 @@ export const SignupScreen = ({ navigation }) => {
     acceptTerms: false,
   });
 
+  const [errors, setErrors] = useState({});
+
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validate = () => {
+    let valid = true;
+    let newErrors = {};
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Le nom est requis';
+      valid = false;
+    }
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'Le prénom est requis';
+      valid = false;
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = "L'adresse email est requise";
+      valid = false;
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "L'adresse email n'est pas valide";
+      valid = false;
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Le numéro de téléphone est requis';
+      valid = false;
+    }
+    if (!formData.password) {
+      newErrors.password = 'Le mot de passe est requis';
+      valid = false;
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Le mot de passe doit contenir au moins 6 caractères';
+      valid = false;
+    }
+    if (!formData.acceptTerms) {
+      newErrors.acceptTerms = 'Vous devez accepter les conditions';
+      valid = false;
+    }
+
+    setErrors(newErrors);
+    return valid;
+  };
+
   const handleSignup = () => {
-    console.log('Signup:', formData);
+    if (validate()) {
+      console.log('Signup successful:', formData);
+      navigation.navigate('ProfileSetup');
+    }
   };
 
   const handleLogin = () => {
@@ -77,44 +122,85 @@ export const SignupScreen = ({ navigation }) => {
         {/* Registration Form Card */}
         <GlassCard style={styles.formCard}>
           <Input
+            label="Nom"
+            placeholder="Ex: Dupont"
+            value={formData.lastName}
+            onChangeText={(value) => {
+              updateField('lastName', value);
+              if (errors.lastName) setErrors(prev => ({ ...prev, lastName: null }));
+            }}
+            error={errors.lastName}
+            icon={<Ionicons name="person-outline" size={20} color={COLORS.textSecondary} />}
+          />
+
+          <Input
             label="Prénom"
             placeholder="Ex: Jean"
             value={formData.firstName}
-            onChangeText={(value) => updateField('firstName', value)}
+            onChangeText={(value) => {
+              updateField('firstName', value);
+              if (errors.firstName) setErrors(prev => ({ ...prev, firstName: null }));
+            }}
+            error={errors.firstName}
             icon={<Ionicons name="person-outline" size={20} color={COLORS.textSecondary} />}
           />
+
           <Input
             label="Email"
             placeholder="jean.dupont@email.com"
             value={formData.email}
-            onChangeText={(value) => updateField('email', value)}
+            onChangeText={(value) => {
+              updateField('email', value);
+              if (errors.email) setErrors(prev => ({ ...prev, email: null }));
+            }}
             keyboardType="email-address"
+            error={errors.email}
             icon={<Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />}
           />
+
           <Input
             label="Numéro de téléphone"
             placeholder="+229 -- -- -- --"
             value={formData.phone}
-            onChangeText={(value) => updateField('phone', value)}
+            onChangeText={(value) => {
+              updateField('phone', value);
+              if (errors.phone) setErrors(prev => ({ ...prev, phone: null }));
+            }}
             keyboardType="phone-pad"
+            error={errors.phone}
             icon={<Ionicons name="call-outline" size={20} color={COLORS.textSecondary} />}
           />
+
           <Input
             label="Mot de passe"
             placeholder="••••••••••••"
             value={formData.password}
-            onChangeText={(value) => updateField('password', value)}
+            onChangeText={(value) => {
+              updateField('password', value);
+              if (errors.password) setErrors(prev => ({ ...prev, password: null }));
+            }}
             secureTextEntry
+            error={errors.password}
             icon={<Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />}
           />
 
           {/* Checkbox Condition */}
           <TouchableOpacity
             style={styles.checkboxContainer}
-            onPress={() => updateField('acceptTerms', !formData.acceptTerms)}
+            onPress={() => {
+              const newVal = !formData.acceptTerms;
+              updateField('acceptTerms', newVal);
+              if (newVal && errors.acceptTerms) {
+                setErrors(prev => ({ ...prev, acceptTerms: null }));
+              }
+            }}
             activeOpacity={0.8}
           >
-            <View style={[styles.checkbox, formData.acceptTerms && styles.checkboxChecked]}>
+            <View style={[
+              styles.checkbox, 
+              formData.acceptTerms && styles.checkboxChecked,
+              errors.acceptTerms && { borderColor: COLORS.error }
+            ]}>
               {formData.acceptTerms && <Ionicons name="checkmark" size={14} color={COLORS.background} />}
             </View>
             <Text style={styles.checkboxLabel}>
@@ -122,6 +208,9 @@ export const SignupScreen = ({ navigation }) => {
               <Text style={styles.termsLink}>conditions d'utilisation</Text>
             </Text>
           </TouchableOpacity>
+          {errors.acceptTerms && (
+            <Text style={styles.checkboxErrorText}>{errors.acceptTerms}</Text>
+          )}
 
           {/* Submit Button */}
           <Button
@@ -170,7 +259,7 @@ export const SignupScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Aesthetic Imagery Card (Secured & Private) */}
+        {/* Aesthetic Card - Secured & Private */}
         <View style={styles.aestheticCard}>
           <Image
             source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCbLpEXzSqG3qnXodAbHL1E0cImbrjpoYcyFGtz9uMpgHicN-KLwkYbEZzX-LJxIjXiLc4aZ4B2HYSRyXrV446eGguDWu8eCSpPx8HNodLibd9JgnkZi4adwAgpO8sbp-98wdGQO4wrY-h0GpdqT8b8Y2umKOIDODiEuRksuprgRIFFHI5EzsNsuOYmTjmSRJLkrc4u72yhvhwD5Aa5iV1NpGdUIkVh5vn8tMgPs1itzsTzAuydRSd8yYguEV6jL7CxRdUrwt0QKsNb' }}
@@ -227,16 +316,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.glassBorder,
   },
-  backIcon: {
-    fontSize: 20,
-    color: COLORS.onSurface,
-  },
   scrollView: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
     paddingHorizontal: SPACING.marginX,
-    paddingBottom: SPACING.xxl,
+    paddingBottom: SPACING.xxl + 40,
   },
   brandingContainer: {
     alignItems: 'center',
@@ -269,9 +355,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.07)',
     marginBottom: SPACING.stackLg,
   },
-  inputIcon: {
-    fontSize: 18,
-  },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -293,22 +376,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
-  checkmark: {
-    color: COLORS.background,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
   checkboxLabel: {
     ...TYPOGRAPHY.sizes.bodyMd,
     color: COLORS.onSurfaceVariant,
   },
+  checkboxErrorText: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginTop: -SPACING.stackSm,
+    marginBottom: SPACING.stackMd,
+    marginLeft: 4,
+  },
   termsLink: {
     color: COLORS.primary,
-  },
-  arrowIcon: {
-    fontSize: 18,
-    color: COLORS.background,
-    fontWeight: 'bold',
   },
   divider: {
     flexDirection: 'row',
@@ -343,9 +423,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
-  biometricIcon: {
-    fontSize: 20,
-  },
   loginRedirect: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -368,6 +445,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.07)',
     position: 'relative',
     backgroundColor: 'rgba(15, 30, 53, 0.5)',
+    marginBottom: SPACING.stackLg,
   },
   aestheticImage: {
     width: '100%',

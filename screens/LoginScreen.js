@@ -5,7 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StatusBar ,
+  StatusBar,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,12 +19,33 @@ export const LoginScreen = ({ navigation }) => {
     password: '',
   });
 
+  const [errors, setErrors] = useState({});
+
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validate = () => {
+    let valid = true;
+    let newErrors = {};
+
+    if (!formData.emailOrPhone.trim()) {
+      newErrors.emailOrPhone = "L'email ou le numéro de téléphone est requis";
+      valid = false;
+    }
+    if (!formData.password) {
+      newErrors.password = 'Le mot de passe est requis';
+      valid = false;
+    }
+
+    setErrors(newErrors);
+    return valid;
+  };
+
   const handleLogin = () => {
-    console.log('Login:', formData);
+    if (validate()) {
+      console.log('Login success (no redirection per user choice):', formData);
+    }
   };
 
   const handleForgotPassword = () => {
@@ -81,16 +102,25 @@ export const LoginScreen = ({ navigation }) => {
           <Input
             placeholder="Email ou Téléphone"
             value={formData.emailOrPhone}
-            onChangeText={(value) => updateField('emailOrPhone', value)}
+            onChangeText={(value) => {
+              updateField('emailOrPhone', value);
+              if (errors.emailOrPhone) setErrors(prev => ({ ...prev, emailOrPhone: null }));
+            }}
             keyboardType="email-address"
+            error={errors.emailOrPhone}
             icon={<Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />}
             style={styles.inputField}
           />
+          
           <Input
             placeholder="Mot de passe"
             value={formData.password}
-            onChangeText={(value) => updateField('password', value)}
+            onChangeText={(value) => {
+              updateField('password', value);
+              if (errors.password) setErrors(prev => ({ ...prev, password: null }));
+            }}
             secureTextEntry
+            error={errors.password}
             icon={<Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />}
             style={styles.inputField}
           />

@@ -26,7 +26,7 @@ export const ProfileSetupScreen = ({ navigation }) => {
       goal: selectedGoal,
     });
     // On redirige vers Login (ou l'accueil le moment venu)
-    navigation.navigate('Login');
+    navigation.navigate('Dashboard');
   };
 
   return (

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, TextInput, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, BORDER_RADIUS, SPACING } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
+import { BORDER_RADIUS, SPACING } from '../constants/theme';
 
 export const Input = ({
   label,
@@ -16,45 +17,44 @@ export const Input = ({
   style,
   containerStyle,
 }) => {
-  const [isFocused, setIsFocused] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const { colors } = useTheme();
+  const styles     = getStyles(colors);
 
-  const isPassword = secureTextEntry;
+  const [isFocused,    setIsFocused]    = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View
-        style={[
-          styles.inputContainer,
-          isFocused && styles.inputFocused,
-          error && styles.inputError,
-          style,
-        ]}
-      >
+      <View style={[
+        styles.inputContainer,
+        isFocused && styles.inputFocused,
+        error     && styles.inputError,
+        style,
+      ]}>
         {icon && <View style={styles.icon}>{icon}</View>}
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor="rgba(220, 226, 248, 0.4)"
+          placeholderTextColor={colors.placeholder}
           value={value}
           onChangeText={onChangeText}
-          secureTextEntry={isPassword && !showPassword}
+          secureTextEntry={secureTextEntry && !showPassword}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
         />
-        {isPassword && (
+        {secureTextEntry && (
           <TouchableOpacity
             style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
+            onPress={() => setShowPassword(v => !v)}
             activeOpacity={0.7}
           >
             <Ionicons
               name={showPassword ? 'eye-outline' : 'eye-off-outline'}
               size={20}
-              color={COLORS.textSecondary}
+              color={colors.textSecondary}
             />
           </TouchableOpacity>
         )}
@@ -64,57 +64,42 @@ export const Input = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: SPACING.md,
-  },
+const getStyles = (colors) => StyleSheet.create({
+  container: { marginBottom: SPACING.md },
   label: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 6,
     marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.inputBg,
     borderRadius: BORDER_RADIUS.md,
     height: 56,
-    borderWidth: 1,
-    borderColor: COLORS.transparent,
+    borderWidth: 1.5,
+    borderColor: colors.borderLight,
   },
-  inputFocused: {
-    borderColor: COLORS.primary,
-  },
-  inputError: {
-    borderColor: COLORS.error,
-  },
-  icon: {
-    paddingLeft: SPACING.md,
-    color: COLORS.textSecondary,
-  },
+  inputFocused: { borderColor: colors.primary, backgroundColor: `${colors.primary}08` },
+  inputError:   { borderColor: colors.error,   backgroundColor: `${colors.error}08`   },
+  icon:         { paddingLeft: SPACING.md },
   input: {
     flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 16,
+    color: colors.textPrimary,
+    fontSize: 15,
     paddingHorizontal: SPACING.md,
-    ...Platform.select({
-      web: {
-        outlineStyle: 'none',
-      },
-    }),
+    ...Platform.select({ web: { outlineStyle: 'none' } }),
   },
-  eyeButton: {
-    paddingRight: SPACING.md,
-  },
-  eyeIcon: {
-    fontSize: 18,
-  },
+  eyeButton: { paddingRight: SPACING.md },
   errorText: {
-    color: COLORS.error,
+    color: colors.error,
     fontSize: 12,
     marginTop: SPACING.xs,
+    marginLeft: 4,
   },
 });
 

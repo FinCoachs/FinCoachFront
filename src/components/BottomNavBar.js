@@ -1,107 +1,75 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, BORDER_RADIUS } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 
 const NAV_ITEMS = [
-  {
-    id: 'Dashboard',
-    label: 'Accueil',
-    lib: 'ionicons',
-    icon: 'home-outline',
-    iconActive: 'home',
-  },
-  {
-    id: 'Transactions',
-    label: 'Transactions',
-    lib: 'community',
-    icon: 'receipt-outline',
-    iconActive: 'receipt',
-  },
-  {
-    id: 'Budget',
-    label: 'Budget',
-    lib: 'ionicons',
-    icon: 'wallet-outline',
-    iconActive: 'wallet',
-  },
-  {
-    id: 'CoachIA',
-    label: 'Coach IA',
-    lib: 'community',
-    icon: 'robot-outline',
-    iconActive: 'robot',
-  },
-  {
-    id: 'Profile',
-    label: 'Profil',
-    lib: 'ionicons',
-    icon: 'person-outline',
-    iconActive: 'person',
-  },
+  { id: 'Dashboard',    label: 'Accueil',     lib: 'ionicons',  icon: 'home-outline',     iconActive: 'home'    },
+  { id: 'Transactions', label: 'Transactions', lib: 'community', icon: 'receipt-outline',  iconActive: 'receipt' },
+  { id: 'Budget',       label: 'Budget',       lib: 'ionicons',  icon: 'wallet-outline',   iconActive: 'wallet'  },
+  { id: 'CoachIA',      label: 'Coach IA',     lib: 'community', icon: 'robot-outline',    iconActive: 'robot'   },
+  { id: 'Profile',      label: 'Profil',       lib: 'ionicons',  icon: 'person-outline',   iconActive: 'person'  },
 ];
 
-// Écrans réellement implémentés dans le navigateur
-const IMPLEMENTED = ['Dashboard', 'Transactions'];
+const IMPLEMENTED = ['Dashboard', 'Transactions', 'Budget'];
 
-const NavIcon = ({ item, isActive }) => {
-  const color = isActive ? COLORS.primary : 'rgba(186, 203, 190, 0.5)';
+const NavIcon = ({ item, isActive, colors }) => {
+  const color = isActive ? colors.primary : colors.placeholder;
   const name  = isActive ? item.iconActive : item.icon;
-
   if (item.lib === 'community') {
     return <MaterialCommunityIcons name={name} size={22} color={color} />;
   }
   return <Ionicons name={name} size={22} color={color} />;
 };
 
-export const BottomNavBar = ({ activeScreen, navigation }) => (
-  <View style={styles.container}>
-    {NAV_ITEMS.map((item) => {
-      const isActive = activeScreen === item.id;
-      return (
-        <TouchableOpacity
-          key={item.id}
-          style={styles.item}
-          activeOpacity={0.75}
-          onPress={() => {
-            if (isActive) return;
-            if (!IMPLEMENTED.includes(item.id)) {
-              Alert.alert(
-                'Bientôt disponible',
-                `L'écran "${item.label}" arrive prochainement.`,
-                [{ text: 'OK' }],
-              );
-              return;
-            }
-            navigation.navigate(item.id);
-          }}
-        >
-          {/* Fond pill derrière l'icône active */}
-          <View style={[styles.iconWrap, isActive && styles.iconWrapActive]}>
-            <NavIcon item={item} isActive={isActive} />
-          </View>
+export const BottomNavBar = ({ activeScreen, navigation }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
 
-          <Text style={[styles.label, isActive && styles.labelActive]}>
-            {item.label}
-          </Text>
-        </TouchableOpacity>
-      );
-    })}
-  </View>
-);
+  return (
+    <View style={styles.container}>
+      {NAV_ITEMS.map((item) => {
+        const isActive = activeScreen === item.id;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.item}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (isActive) return;
+              if (!IMPLEMENTED.includes(item.id)) {
+                Alert.alert(
+                  'Bientôt disponible',
+                  `L'écran "${item.label}" arrive prochainement.`,
+                  [{ text: 'OK' }],
+                );
+                return;
+              }
+              navigation.navigate(item.id);
+            }}
+          >
+            <View style={[styles.iconWrap, isActive && styles.iconWrapActive]}>
+              <NavIcon item={item} isActive={isActive} colors={colors} />
+            </View>
+            <Text style={[styles.label, isActive && styles.labelActive]}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
 
-const styles = StyleSheet.create({
+const getStyles = (colors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     height: 64,
-    backgroundColor: 'rgba(10, 16, 30, 0.97)',
+    backgroundColor: colors.background,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
+    borderTopColor: colors.border,
   },
-
   item: {
     flex: 1,
     alignItems: 'center',
@@ -109,8 +77,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 3,
   },
-
-  // Fond capsule derrière l'icône
   iconWrap: {
     width: 44,
     height: 30,
@@ -119,16 +85,15 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(68, 243, 169, 0.13)',
+    backgroundColor: `${colors.primary}1F`,
   },
-
   label: {
     fontSize: 10,
     fontWeight: '500',
-    color: 'rgba(186, 203, 190, 0.5)',
+    color: colors.placeholder,
   },
   labelActive: {
-    color: COLORS.primary,
+    color: colors.primary,
     fontWeight: '700',
   },
 });

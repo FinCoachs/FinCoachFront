@@ -1,97 +1,233 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  StatusBar,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, StatusBar, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
+import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
 
-const STATUTES = ['Étudiant', 'Salarié', 'Freelance / Entrepreneur', 'Autre'];
-const GOALS = ['Épargner', 'Suivre mes dépenses', 'Gérer mes budgets', 'Investir'];
+// ── Données du formulaire ─────────────────────
+
+const STATUTES = [
+  { id: 'etudiant',   label: 'Étudiant',              icon: 'school-outline'        },
+  { id: 'salarie',    label: 'Salarié',                icon: 'briefcase-outline'     },
+  { id: 'freelance',  label: 'Freelance / Auto-entrepreneur', icon: 'laptop-outline' },
+  { id: 'autre',      label: 'Autre',                  icon: 'person-outline'        },
+];
+
+const INCOME_RANGES = [
+  { id: 'lt50',    label: '< 50 000',      sub: 'FCFA / mois' },
+  { id: '50_150',  label: '50k – 150k',    sub: 'FCFA / mois' },
+  { id: '150_350', label: '150k – 350k',   sub: 'FCFA / mois' },
+  { id: '350_700', label: '350k – 700k',   sub: 'FCFA / mois' },
+  { id: 'gt700',   label: '> 700 000',     sub: 'FCFA / mois' },
+];
+
+const ACCOUNT_TYPES = [
+  { id: 'boa',    label: 'BOA Bénin',   icon: 'business-outline',       color: '#003366' },
+  { id: 'momo',   label: 'MTN MoMo',   icon: 'phone-portrait-outline',  color: '#FFC300' },
+  { id: 'moov',   label: 'Moov Money', icon: 'phone-portrait-outline',  color: '#E87722' },
+  { id: 'cash',   label: 'Espèces',    icon: 'cash-outline',            color: '#2E7D32' },
+];
+
+const GOALS = [
+  { id: 'save',    label: 'Épargner',              icon: 'trending-up-outline'   },
+  { id: 'track',   label: 'Suivre mes dépenses',   icon: 'analytics-outline'     },
+  { id: 'budget',  label: 'Gérer mes budgets',     icon: 'wallet-outline'        },
+  { id: 'invest',  label: 'Investir',              icon: 'bar-chart-outline'     },
+];
+
+const HOUSEHOLDS = [
+  { id: 'single',  label: 'Seul(e)',           icon: 'person-outline'         },
+  { id: 'couple',  label: 'En couple',         icon: 'people-outline'         },
+  { id: 'family',  label: 'Avec enfants',      icon: 'home-outline'           },
+  { id: 'extended',label: 'Famille élargie',   icon: 'people-circle-outline'  },
+];
+
+// ── Composants réutilisables ──────────────────
+
+const SectionHeader = ({ step, title, subtitle }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ gap: 4, marginBottom: 4 }}>
+      <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: colors.primary }}>
+        ÉTAPE {step}
+      </Text>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.onSurface }}>{title}</Text>
+      {subtitle && (
+        <Text style={{ fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 18 }}>{subtitle}</Text>
+      )}
+    </View>
+  );
+};
+
+// Chip simple (sélection unique)
+const Chip = ({ label, icon, active, onPress }) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[
+        chipStyles.chip,
+        { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? `${colors.primary}14` : colors.inputBg },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      {icon && <Ionicons name={icon} size={16} color={active ? colors.primary : colors.textSecondary} />}
+      <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? colors.primary : colors.textSecondary }}>
+        {label}
+      </Text>
+      {active && <Ionicons name="checkmark-circle" size={16} color={colors.primary} style={{ marginLeft: 'auto' }} />}
+    </TouchableOpacity>
+  );
+};
+
+// Chip multi-sélection (comptes)
+const AccountChip = ({ item, active, onPress }) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[
+        chipStyles.accountChip,
+        { borderColor: active ? item.color : colors.border, backgroundColor: active ? `${item.color}14` : colors.inputBg },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={[chipStyles.accountDot, { backgroundColor: item.color }]}>
+        <Ionicons name={item.icon} size={14} color="#fff" />
+      </View>
+      <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? item.color : colors.textSecondary, flex: 1 }}>
+        {item.label}
+      </Text>
+      {active && <Ionicons name="checkmark-circle" size={16} color={item.color} />}
+    </TouchableOpacity>
+  );
+};
+
+const chipStyles = StyleSheet.create({
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 11,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1.5,
+  },
+  accountChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1.5,
+  },
+  accountDot: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+});
+
+// ── Écran principal ───────────────────────────
 
 export const ProfileSetupScreen = ({ navigation }) => {
-  const [selectedStatus, setSelectedStatus] = useState('Salarié');
-  const [selectedGoal, setSelectedGoal] = useState('Gérer mes budgets');
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
+
+  const [status,    setStatus]    = useState('salarie');
+  const [income,    setIncome]    = useState('');
+  const [accounts,  setAccounts]  = useState([]);
+  const [goal,      setGoal]      = useState('budget');
+  const [household, setHousehold] = useState('single');
+
+  const toggleAccount = (id) =>
+    setAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+
+  const isComplete = status && income && accounts.length > 0 && goal && household;
 
   const handleFinish = () => {
-    console.log('Profile configured:', {
-      status: selectedStatus,
-      goal: selectedGoal,
-    });
-    // On redirige vers Login (ou l'accueil le moment venu)
-    navigation.navigate('Dashboard');
+    if (!isComplete) return;
+    console.log('Profile configured:', { status, income, accounts, goal, household });
+    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
-      {/* Background Decorative Glows */}
       <View style={styles.glowEmerald} />
       <View style={styles.glowGold} />
 
-      {/* Top Header App Bar */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Ionicons name="chevron-back" size={20} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>FinCoach</Text>
-        <View style={styles.headerRightSpacer} />
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.headerTitle}>FinCoach</Text>
+          <Text style={styles.headerSub}>Votre profil financier</Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
+      {/* Barre de progression */}
+      <View style={styles.progressBar}>
+        {[0, 1, 2, 3, 4].map(i => (
+          <View
+            key={i}
+            style={[
+              styles.progressDot,
+              {
+                backgroundColor: i < [status, income, accounts.length, goal, household].filter(Boolean).length
+                  ? colors.primary : colors.border,
+                width: i < [status, income, accounts.length, goal, household].filter(Boolean).length ? 24 : 8,
+              },
+            ]}
+          />
+        ))}
+      </View>
+
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
-          style={styles.scrollView}
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Hero Header Section */}
-          <View style={styles.heroSection}>
-            <Text style={styles.heroTitle}>Configurez votre profil financier</Text>
-            <Text style={styles.heroSubtitle}>
-              Ces informations nous permettent de personnaliser vos budgets et vos recommandations d'IA.
-            </Text>
+
+          {/* ── Section 1 : Statut ── */}
+          <View style={styles.section}>
+            <SectionHeader
+              step="1"
+              title="Votre situation"
+              subtitle="Cela nous aide à adapter vos catégories de dépenses."
+            />
+            <View style={styles.chipList}>
+              {STATUTES.map(s => (
+                <Chip key={s.id} label={s.label} icon={s.icon} active={status === s.id} onPress={() => setStatus(s.id)} />
+              ))}
+            </View>
           </View>
 
-          {/* Section 1: Professional Status */}
+          {/* ── Section 2 : Revenus ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>VOTRE SITUATION ACTUELLE</Text>
-            <Text style={styles.sectionQuestion}>Quel est votre statut socio-professionnel ?</Text>
-            <View style={styles.chipsContainer}>
-              {STATUTES.map((item) => {
-                const isActive = selectedStatus === item;
+            <SectionHeader
+              step="2"
+              title="Tranche de revenu mensuel"
+              subtitle="Confidentiel — utilisé uniquement pour calibrer vos budgets et recommandations IA."
+            />
+            <View style={styles.incomeGrid}>
+              {INCOME_RANGES.map(r => {
+                const active = income === r.id;
                 return (
                   <TouchableOpacity
-                    key={item}
-                    style={[
-                      styles.chip,
-                      isActive ? styles.chipActive : styles.chipInactive,
-                    ]}
-                    onPress={() => setSelectedStatus(item)}
+                    key={r.id}
+                    style={[styles.incomeCard, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? `${colors.primary}14` : colors.inputBg }]}
+                    onPress={() => setIncome(r.id)}
                     activeOpacity={0.8}
                   >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isActive ? styles.chipTextActive : styles.chipTextInactive,
-                      ]}
-                    >
-                      {item}
+                    {active && <Ionicons name="checkmark-circle" size={14} color={colors.primary} style={styles.incomeCheck} />}
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: active ? colors.primary : colors.textPrimary }}>
+                      {r.label}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: active ? colors.primary : colors.textSecondary }}>
+                      {r.sub}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -99,30 +235,59 @@ export const ProfileSetupScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Section 2: Financial Goals */}
+          {/* ── Section 3 : Comptes ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>VOTRE OBJECTIF PRINCIPAL</Text>
-            <Text style={styles.sectionQuestion}>Quel est votre objectif financier principal ?</Text>
-            <View style={styles.chipsContainer}>
-              {GOALS.map((item) => {
-                const isActive = selectedGoal === item;
+            <SectionHeader
+              step="3"
+              title="Vos comptes à suivre"
+              subtitle="Sélectionnez les sources que vous utilisez. Plusieurs choix possibles."
+            />
+            <View style={styles.chipList}>
+              {ACCOUNT_TYPES.map(a => (
+                <AccountChip
+                  key={a.id}
+                  item={a}
+                  active={accounts.includes(a.id)}
+                  onPress={() => toggleAccount(a.id)}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* ── Section 4 : Objectif ── */}
+          <View style={styles.section}>
+            <SectionHeader
+              step="4"
+              title="Objectif principal"
+              subtitle="Votre coach IA adaptera ses conseils à cet objectif."
+            />
+            <View style={styles.chipList}>
+              {GOALS.map(g => (
+                <Chip key={g.id} label={g.label} icon={g.icon} active={goal === g.id} onPress={() => setGoal(g.id)} />
+              ))}
+            </View>
+          </View>
+
+          {/* ── Section 5 : Foyer ── */}
+          <View style={styles.section}>
+            <SectionHeader
+              step="5"
+              title="Situation du foyer"
+              subtitle="Aide l'IA à estimer vos charges incompressibles."
+            />
+            <View style={styles.householdGrid}>
+              {HOUSEHOLDS.map(h => {
+                const active = household === h.id;
                 return (
                   <TouchableOpacity
-                    key={item}
-                    style={[
-                      styles.chip,
-                      isActive ? styles.chipActive : styles.chipInactive,
-                    ]}
-                    onPress={() => setSelectedGoal(item)}
+                    key={h.id}
+                    style={[styles.householdCard, { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? `${colors.primary}14` : colors.inputBg }]}
+                    onPress={() => setHousehold(h.id)}
                     activeOpacity={0.8}
                   >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isActive ? styles.chipTextActive : styles.chipTextInactive,
-                      ]}
-                    >
-                      {item}
+                    <Ionicons name={h.icon} size={24} color={active ? colors.primary : colors.textSecondary} />
+                    <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? colors.primary : colors.textSecondary, textAlign: 'center' }}>
+                      {h.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -130,226 +295,109 @@ export const ProfileSetupScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Padding to prevent overlap with fixed footer */}
           <View style={{ height: 100 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Fixed Footer Action Button */}
-      <View style={styles.footer}>
+      {/* Footer */}
+      <View style={[styles.footer, { backgroundColor: colors.background }]}>
+        {!isComplete && (
+          <Text style={styles.footerHint}>
+            {accounts.length === 0 ? 'Sélectionnez au moins un compte' : 'Complétez toutes les étapes'}
+          </Text>
+        )}
         <TouchableOpacity
-          style={styles.submitButton}
+          style={[
+            styles.submitButton,
+            { backgroundColor: isComplete ? colors.primary : colors.surfaceContainerHigh },
+          ]}
           onPress={handleFinish}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
+          disabled={!isComplete}
         >
-          <Text style={styles.submitButtonText}>Finaliser mon profil</Text>
-          <Ionicons name="arrow-forward" size={20} color={COLORS.background} />
+          <Text style={[styles.submitText, { color: isComplete ? colors.onPrimary : colors.textSecondary }]}>
+            Commencer avec FinCoach
+          </Text>
+          <Ionicons name="arrow-forward" size={20} color={isComplete ? colors.onPrimary : colors.textSecondary} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+// ── Styles ────────────────────────────────────
+
+const getStyles = (colors) => StyleSheet.create({
+  container:  { flex: 1, backgroundColor: colors.background },
   glowEmerald: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 300,
-    height: 300,
-    backgroundColor: 'rgba(68, 243, 169, 0.04)',
-    borderRadius: BORDER_RADIUS.full,
+    position: 'absolute', top: 0, right: 0, width: 280, height: 280,
+    backgroundColor: 'rgba(68, 243, 169, 0.05)', borderRadius: BORDER_RADIUS.full,
   },
   glowGold: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 350,
-    height: 350,
-    backgroundColor: 'rgba(248, 189, 69, 0.03)',
-    borderRadius: BORDER_RADIUS.full,
+    position: 'absolute', bottom: 100, left: -40, width: 300, height: 300,
+    backgroundColor: 'rgba(248, 189, 69, 0.04)', borderRadius: BORDER_RADIUS.full,
   },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.marginX,
-    height: 56,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.marginX, height: 60,
+    borderBottomWidth: 1, borderBottomColor: colors.divider,
+    backgroundColor: colors.surface,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.borderLight,
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: {
-    ...TYPOGRAPHY.sizes.headlineLg,
-    fontSize: 22,
-    color: COLORS.primary,
-    fontWeight: '700',
+  headerTitle: { ...TYPOGRAPHY.sizes.headlineMd, fontSize: 18, color: colors.primary, fontWeight: '800' },
+  headerSub:   { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
+
+  progressBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12,
   },
-  headerRightSpacer: {
-    width: 40,
+  progressDot: { height: 4, borderRadius: 2 },
+
+  scrollContent: { paddingHorizontal: SPACING.marginX, paddingTop: SPACING.stackMd, gap: SPACING.stackLg },
+
+  section:      { gap: SPACING.stackMd },
+  chipList:     { gap: SPACING.stackSm },
+
+  incomeGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
   },
-  keyboardView: {
-    flex: 1,
+  incomeCard: {
+    width: '47%', borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 14,
+    gap: 2, position: 'relative',
   },
-  scrollView: {
-    flex: 1,
+  incomeCheck: { position: 'absolute', top: 8, right: 8 },
+
+  householdGrid: { flexDirection: 'row', gap: 10 },
+  householdCard: {
+    flex: 1, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1.5, paddingVertical: 16,
+    alignItems: 'center', gap: 6,
   },
-  scrollContent: {
-    paddingHorizontal: SPACING.marginX,
-    paddingTop: 24,
-  },
-  heroSection: {
-    marginBottom: 36,
-  },
-  heroTitle: {
-    ...TYPOGRAPHY.sizes.headlineLg,
-    color: COLORS.onSurface,
-    marginBottom: SPACING.xs,
-  },
-  heroSubtitle: {
-    ...TYPOGRAPHY.sizes.bodyMd,
-    color: COLORS.onSurfaceVariant,
-    lineHeight: 20,
-  },
-  section: {
-    marginBottom: 40,
-  },
-  sectionLabel: {
-    ...TYPOGRAPHY.sizes.labelCaps,
-    color: COLORS.onSurfaceVariant,
-    marginBottom: SPACING.xs,
-  },
-  sectionQuestion: {
-    ...TYPOGRAPHY.sizes.bodyLg,
-    color: COLORS.onSurface,
-    fontWeight: '500',
-    marginBottom: 20,
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  chip: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: BORDER_RADIUS.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipActive: {
-    backgroundColor: COLORS.primary,
-  },
-  chipInactive: {
-    backgroundColor: COLORS.surfaceContainer || '#191f2f',
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-  },
-  chipText: {
-    ...TYPOGRAPHY.sizes.labelSm,
-    fontSize: 13,
-  },
-  chipTextActive: {
-    color: COLORS.background,
-    fontWeight: '700',
-  },
-  chipTextInactive: {
-    color: COLORS.onSurfaceVariant,
-  },
-  walletsContainer: {
-    gap: 16,
-  },
-  walletCardPressable: {
-    width: '100%',
-  },
-  walletCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SPACING.md,
-  },
-  walletLeftContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    flex: 1,
-  },
-  walletIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  walletTextContainer: {
-    flex: 1,
-  },
-  walletName: {
-    ...TYPOGRAPHY.sizes.bodyLg,
-    color: COLORS.onSurface,
-    fontWeight: '600',
-  },
-  walletSub: {
-    ...TYPOGRAPHY.sizes.labelSm,
-    color: COLORS.onSurfaceVariant,
-    marginTop: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0F1E35',
-  },
-  checkboxSelected: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
+
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: SPACING.marginX,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.03)',
-    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+    paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: colors.divider,
+    gap: 8,
+  },
+  footerHint: {
+    fontSize: 12, color: colors.textSecondary,
+    textAlign: 'center', fontStyle: 'italic',
   },
   submitButton: {
-    height: 52,
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
+    height: 54, borderRadius: BORDER_RADIUS.lg,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8,
   },
-  submitButtonText: {
-    color: COLORS.background,
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  submitText: { fontSize: 16, fontWeight: '700' },
 });
 
 export default ProfileSetupScreen;

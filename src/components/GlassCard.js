@@ -1,8 +1,11 @@
-import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
-import { COLORS, BORDER_RADIUS, SPACING, SHADOWS } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
+import { BORDER_RADIUS, SPACING } from '../constants/theme';
 
 export const GlassCard = ({ children, style }) => {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
+
   return (
     <View style={[styles.card, style]}>
       {children}
@@ -10,22 +13,22 @@ export const GlassCard = ({ children, style }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (colors, isDark) => StyleSheet.create({
   card: {
-    backgroundColor: COLORS.glassBg,
+    backgroundColor: colors.glassBg,
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: colors.glassBorder,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
+        shadowColor: isDark ? '#000' : '#1a3060',
+        shadowOffset: { width: 0, height: isDark ? 8 : 4 },
+        shadowOpacity: isDark ? 0.4 : 0.08,
+        shadowRadius: isDark ? 16 : 12,
       },
       android: {
-        elevation: 12,
+        elevation: isDark ? 12 : 4,
       },
     }),
   },

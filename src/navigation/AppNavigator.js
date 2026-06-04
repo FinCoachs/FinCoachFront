@@ -1,37 +1,62 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   WelcomeScreen,
   SignupScreen,
   LoginScreen,
   ProfileSetupScreen,
-  DashboardScreen,
-  TransactionsScreen,
   AddTransactionScreen,
 } from '../../screens';
-import { COLORS } from '../constants/theme';
+import { SwipeNavigator } from './SwipeNavigator';
+import { useTheme } from '../context/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
+const buildNavTheme = (isDark, colors) => ({
+  ...(isDark ? DarkTheme : DefaultTheme),
+  colors: {
+    ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+    primary:      colors.primary,
+    background:   colors.background,
+    card:         colors.background,
+    text:         colors.textPrimary,
+    border:       'transparent',
+    notification: colors.primary,
+  },
+});
+
 export const AppNavigator = () => {
+  const { isDark, colors } = useTheme();
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={buildNavTheme(isDark, colors)}>
       <Stack.Navigator
         initialRouteName="Welcome"
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: COLORS.background },
+          contentStyle: { backgroundColor: colors.background },
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="Welcome" component={WelcomeScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
+        {/* ── Flux d'authentification ── */}
+        <Stack.Screen name="Welcome"      component={WelcomeScreen} />
+        <Stack.Screen name="Signup"       component={SignupScreen} />
+        <Stack.Screen name="Login"        component={LoginScreen} />
         <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} />
-        <Stack.Screen name="Transactions" component={TransactionsScreen} />
-        <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
+
+        {/* ── Onglets principaux : balayage géré par SwipeNavigator ── */}
+        <Stack.Screen
+          name="Main"
+          component={SwipeNavigator}
+          options={{ animation: 'fade' }}
+        />
+
+        {/* ── Sous-écran modal ── */}
+        <Stack.Screen
+          name="AddTransaction"
+          component={AddTransactionScreen}
+          options={{ animation: 'slide_from_bottom' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

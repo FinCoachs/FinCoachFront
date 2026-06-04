@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -10,72 +10,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
+import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { Button, Input } from '../src/components';
 
 export const LoginScreen = ({ navigation }) => {
-  const [formData, setFormData] = useState({
-    emailOrPhone: '',
-    password: '',
-  });
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
 
-  const [errors, setErrors] = useState({});
+  const [formData, setFormData] = useState({ emailOrPhone: '', password: '' });
+  const [errors, setErrors]     = useState({});
 
-  const updateField = (field, value) => {
+  const updateField = (field, value) =>
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
 
   const validate = () => {
-    let valid = true;
-    let newErrors = {};
-
-    if (!formData.emailOrPhone.trim()) {
-      newErrors.emailOrPhone = "L'email ou le numéro de téléphone est requis";
-      valid = false;
-    }
-    if (!formData.password) {
-      newErrors.password = 'Le mot de passe est requis';
-      valid = false;
-    }
-
+    const newErrors = {};
+    if (!formData.emailOrPhone.trim()) newErrors.emailOrPhone = "L'email ou le numéro de téléphone est requis";
+    if (!formData.password)            newErrors.password      = 'Le mot de passe est requis';
     setErrors(newErrors);
-    return valid;
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = () => {
-    if (validate()) {
-      console.log('Login success (no redirection per user choice):', formData);
-    }
-  };
-
-  const handleForgotPassword = () => {
-    console.log('Forgot password');
-  };
-
-  const handleSignup = () => {
-    navigation.navigate('Signup');
-  };
-
-  const handleBack = () => {
-    navigation.goBack();
+    if (validate()) navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
-      {/* Decorative background glows */}
       <View style={styles.glowEmerald} />
       <View style={styles.glowGold} />
 
-      {/* Top Navigation Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleBack}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={20} color={COLORS.onSurface} />
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Ionicons name="chevron-back" size={20} color={colors.onSurface} />
         </TouchableOpacity>
       </View>
 
@@ -85,7 +55,6 @@ export const LoginScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Wordmark Logo & Welcome Text */}
         <View style={styles.welcomeHeader}>
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>
@@ -97,87 +66,53 @@ export const LoginScreen = ({ navigation }) => {
           <Text style={styles.subtitle}>Connectez-vous pour suivre vos finances</Text>
         </View>
 
-        {/* Login Form */}
         <View style={styles.formContainer}>
           <Input
             placeholder="Email ou Téléphone"
             value={formData.emailOrPhone}
-            onChangeText={(value) => {
-              updateField('emailOrPhone', value);
-              if (errors.emailOrPhone) setErrors(prev => ({ ...prev, emailOrPhone: null }));
-            }}
+            onChangeText={(v) => { updateField('emailOrPhone', v); if (errors.emailOrPhone) setErrors(p => ({ ...p, emailOrPhone: null })); }}
             keyboardType="email-address"
             error={errors.emailOrPhone}
-            icon={<Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />}
+            icon={<Ionicons name="mail-outline" size={20} color={colors.textSecondary} />}
             style={styles.inputField}
           />
-          
           <Input
             placeholder="Mot de passe"
             value={formData.password}
-            onChangeText={(value) => {
-              updateField('password', value);
-              if (errors.password) setErrors(prev => ({ ...prev, password: null }));
-            }}
+            onChangeText={(v) => { updateField('password', v); if (errors.password) setErrors(p => ({ ...p, password: null })); }}
             secureTextEntry
             error={errors.password}
-            icon={<Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />}
+            icon={<Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />}
             style={styles.inputField}
           />
 
-          {/* Forgot Password */}
-          <TouchableOpacity
-            style={styles.forgotPassword}
-            onPress={handleForgotPassword}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.forgotPassword} onPress={() => {}} activeOpacity={0.8}>
             <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
           </TouchableOpacity>
 
-          {/* Login Button */}
-          <Button
-            title="Se connecter"
-            onPress={handleLogin}
-            variant="primary"
-            style={styles.loginButton}
-          />
+          <Button title="Se connecter" onPress={handleLogin} variant="primary" />
         </View>
 
-        {/* Divider */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
           <Text style={styles.dividerText}>OU CONTINUER AVEC</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Social Logins - Using logoext image for Google */}
         <View style={styles.socialButtonsContainer}>
-          <TouchableOpacity
-            style={styles.socialButtonCircle}
-            onPress={() => console.log('Google Sign-in')}
-            activeOpacity={0.8}
-          >
-            <Image
-              source={require('../assets/logoext/image.png')}
-              style={styles.socialIconImage}
-            />
+          <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8}>
+            <Image source={require('../assets/logoext/image.png')} style={styles.socialIconImage} />
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.socialButtonCircle}
-            onPress={() => console.log('Apple Sign-in')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="logo-apple" size={24} color={COLORS.textWhite} />
+          <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8}>
+            <Ionicons name="logo-apple" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Footer redirection */}
       <View style={styles.footer}>
         <Text style={styles.signupText}>
           Nouveau sur FinCoach ?{' '}
-          <Text style={styles.signupLink} onPress={handleSignup}>
+          <Text style={styles.signupLink} onPress={() => navigation.navigate('Signup')}>
             Créer un compte
           </Text>
         </Text>
@@ -186,148 +121,53 @@ export const LoginScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+const getStyles = (colors) => StyleSheet.create({
+  container:     { flex: 1, backgroundColor: colors.background },
   glowEmerald: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 300,
-    height: 300,
-    backgroundColor: 'rgba(68, 243, 169, 0.04)',
-    borderRadius: BORDER_RADIUS.full,
+    position: 'absolute', top: 0, right: 0, width: 300, height: 300,
+    backgroundColor: 'rgba(68, 243, 169, 0.06)', borderRadius: BORDER_RADIUS.full,
   },
   glowGold: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 250,
-    height: 250,
-    backgroundColor: 'rgba(188, 135, 9, 0.04)',
-    borderRadius: BORDER_RADIUS.full,
+    position: 'absolute', bottom: 0, left: 0, width: 250, height: 250,
+    backgroundColor: 'rgba(188, 135, 9, 0.05)', borderRadius: BORDER_RADIUS.full,
   },
-  header: {
-    paddingHorizontal: SPACING.marginX,
-    paddingTop: SPACING.sm,
-    zIndex: 10,
+  header:      { paddingHorizontal: SPACING.marginX, paddingTop: SPACING.sm, zIndex: 10 },
+  backButton:  {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.surfaceLight, borderWidth: 1, borderColor: colors.glassBorder,
+    justifyContent: 'center', alignItems: 'center',
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.glassBorder,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: SPACING.marginX,
-    paddingBottom: SPACING.xxl,
-  },
-  welcomeHeader: {
-    alignItems: 'center',
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
-  logoContainer: {
-    marginBottom: SPACING.stackLg,
-  },
-  logoText: {
-    ...TYPOGRAPHY.sizes.headlineLg,
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  logoFin: {
-    color: COLORS.onSurface,
-  },
-  logoCoach: {
-    color: COLORS.primary,
-  },
-  title: {
-    ...TYPOGRAPHY.sizes.headlineMd,
-    color: COLORS.onSurface,
-    textAlign: 'center',
-    marginBottom: SPACING.base,
-  },
-  subtitle: {
-    ...TYPOGRAPHY.sizes.bodyMd,
-    color: COLORS.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  formContainer: {
-    marginBottom: SPACING.stackLg,
-  },
-  inputField: {
-    backgroundColor: COLORS.surfaceLighter,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: SPACING.stackLg,
-    marginTop: SPACING.base,
-  },
-  forgotPasswordText: {
-    ...TYPOGRAPHY.sizes.labelSm,
-    color: COLORS.onSurfaceVariant,
-  },
-  loginButton: {
-    backgroundColor: COLORS.primaryContainer,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: SPACING.stackLg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  dividerText: {
-    ...TYPOGRAPHY.sizes.labelSm,
-    color: 'rgba(220, 226, 248, 0.5)',
-    paddingHorizontal: SPACING.md,
-  },
-  socialButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.stackLg,
-    marginBottom: SPACING.xl,
-  },
+  scrollView:   { flex: 1 },
+  scrollContent: { paddingHorizontal: SPACING.marginX, paddingBottom: SPACING.xxl },
+
+  welcomeHeader: { alignItems: 'center', marginTop: SPACING.md, marginBottom: SPACING.xl },
+  logoContainer: { marginBottom: SPACING.stackLg },
+  logoText:      { ...TYPOGRAPHY.sizes.headlineLg, fontSize: 32, fontWeight: '700' },
+  logoFin:       { color: colors.onSurface },
+  logoCoach:     { color: colors.primary },
+  title:         { ...TYPOGRAPHY.sizes.headlineMd, color: colors.onSurface, textAlign: 'center', marginBottom: SPACING.base },
+  subtitle:      { ...TYPOGRAPHY.sizes.bodyMd, color: colors.onSurfaceVariant, textAlign: 'center' },
+
+  formContainer:      { marginBottom: SPACING.stackLg },
+  inputField:         { backgroundColor: colors.inputBg, borderColor: colors.border },
+  forgotPassword:     { alignSelf: 'flex-end', marginBottom: SPACING.stackLg, marginTop: SPACING.base },
+  forgotPasswordText: { ...TYPOGRAPHY.sizes.labelSm, color: colors.onSurfaceVariant },
+
+  divider:     { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.stackLg },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.divider },
+  dividerText: { ...TYPOGRAPHY.sizes.labelSm, color: colors.placeholder, paddingHorizontal: SPACING.md },
+
+  socialButtonsContainer: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.stackLg, marginBottom: SPACING.xl },
   socialButtonCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.surfaceLighter,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: colors.surfaceLight, borderWidth: 1, borderColor: colors.border,
+    justifyContent: 'center', alignItems: 'center',
   },
-  socialIconImage: {
-    width: 24,
-    height: 24,
-    resizeMode: 'contain',
-  },
-  footer: {
-    paddingBottom: SPACING.stackLg,
-    alignItems: 'center',
-  },
-  signupText: {
-    ...TYPOGRAPHY.sizes.bodyMd,
-    color: COLORS.onSurfaceVariant,
-  },
-  signupLink: {
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
+  socialIconImage: { width: 24, height: 24, resizeMode: 'contain' },
+
+  footer:     { paddingBottom: SPACING.stackLg, alignItems: 'center' },
+  signupText: { ...TYPOGRAPHY.sizes.bodyMd, color: colors.onSurfaceVariant },
+  signupLink: { color: colors.primary, fontWeight: '700' },
 });
 
 export default LoginScreen;

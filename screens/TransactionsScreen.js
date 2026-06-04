@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,56 +10,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../src/constants/theme';
-import { BottomNavBar } from '../src/components';
+import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
+import { useTransactions } from '../src/context/TransactionsContext';
+import { AppHeader } from '../src/components';
 
-// ============================================
-// DATA — aligné sur Transaction.type enum{dépense, entrée}
-//        montant toujours positif, type détermine la direction
-// ============================================
 
 const TODAY     = new Date();
 const YESTERDAY = new Date(TODAY);
 YESTERDAY.setDate(TODAY.getDate() - 1);
-
-const INITIAL_TRANSACTIONS = [
-  {
-    id: 1,
-    name: 'Erevan Supermarché',
-    montant: 12500,
-    type: 'dépense',
-    categorie: 'Alimentation',
-    source: 'MoMo',
-    date: TODAY,
-  },
-  {
-    id: 2,
-    name: 'Yango Ride',
-    montant: 6000,
-    type: 'dépense',
-    categorie: 'Transport',
-    source: 'BOA',
-    date: TODAY,
-  },
-  {
-    id: 3,
-    name: 'Salaire Mensuel',
-    montant: 450000,
-    type: 'entrée',
-    categorie: 'Salaire',
-    source: 'BOA',
-    date: YESTERDAY,
-  },
-  {
-    id: 4,
-    name: "L'Avenue Restaurant",
-    montant: 25000,
-    type: 'dépense',
-    categorie: 'Loisirs',
-    source: 'MoMo',
-    date: YESTERDAY,
-  },
-];
 
 // Filtres principaux (Module 4 : période, type, source)
 const FILTERS = ['Tout', 'Ce mois', 'Dépenses', 'Revenus', 'Banque', 'MoMo', 'Espèces'];
@@ -67,8 +26,6 @@ const FILTERS = ['Tout', 'Ce mois', 'Dépenses', 'Revenus', 'Banque', 'MoMo', 'E
 // ============================================
 // HELPERS
 // ============================================
-
-const now = new Date();
 
 const dateKey = (d) => {
   const dt = new Date(d);
@@ -97,6 +54,7 @@ const groupByDate = (list) => {
 
 const applyFilters = (list, filter, categorie) => {
   let result = list;
+  const today = new Date();
 
   switch (filter) {
     case 'Dépenses': result = result.filter((t) => t.type === 'dépense'); break;
@@ -107,7 +65,7 @@ const applyFilters = (list, filter, categorie) => {
     case 'Ce mois':
       result = result.filter((t) => {
         const d = new Date(t.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
       });
       break;
     default: break;
@@ -124,18 +82,13 @@ const applyFilters = (list, filter, categorie) => {
 // SUB-COMPONENTS
 // ============================================
 
-const Header = () => (
-  <View style={styles.header}>
-    <Text style={styles.logoText}>
-      <Text style={styles.logoFin}>Fin</Text>
-      <Text style={styles.logoCoach}>Coach</Text>
-    </Text>
-  </View>
-);
+const Header = () => <AppHeader title="Transactions" />;
 
 // Module 5 — Résumé mensuel
 const MonthlySummaryCard = ({ revenues, expenses, net }) => {
-  const raw   = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  const raw   = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   const label = raw.charAt(0).toUpperCase() + raw.slice(1);
   return (
     <View style={styles.summaryCard}>
@@ -143,7 +96,7 @@ const MonthlySummaryCard = ({ revenues, expenses, net }) => {
       <View style={styles.summaryRow}>
 
         <View style={styles.summaryCol}>
-          <View style={[styles.summaryDot, { backgroundColor: '#00d68f' }]} />
+          <View style={[styles.summaryDot, { backgroundColor: colors.income }]} />
           <Text style={styles.summaryLabel}>Revenus</Text>
           <Text style={[styles.summaryAmount, styles.incomeText]}>
             +{revenues.toLocaleString('fr-FR')}
@@ -154,7 +107,7 @@ const MonthlySummaryCard = ({ revenues, expenses, net }) => {
         <View style={styles.summarySep} />
 
         <View style={styles.summaryCol}>
-          <View style={[styles.summaryDot, { backgroundColor: '#FF5A5A' }]} />
+          <View style={[styles.summaryDot, { backgroundColor: colors.expense }]} />
           <Text style={styles.summaryLabel}>Dépenses</Text>
           <Text style={[styles.summaryAmount, styles.expenseText]}>
             -{expenses.toLocaleString('fr-FR')}
@@ -165,7 +118,7 @@ const MonthlySummaryCard = ({ revenues, expenses, net }) => {
         <View style={styles.summarySep} />
 
         <View style={styles.summaryCol}>
-          <View style={[styles.summaryDot, { backgroundColor: net >= 0 ? '#00d68f' : '#FF5A5A' }]} />
+          <View style={[styles.summaryDot, { backgroundColor: net >= 0 ? colors.income : colors.expense }]} />
           <Text style={styles.summaryLabel}>Net</Text>
           <Text style={[styles.summaryAmount, net >= 0 ? styles.incomeText : styles.expenseText]}>
             {net >= 0 ? '+' : '-'}{Math.abs(net).toLocaleString('fr-FR')}
@@ -179,6 +132,8 @@ const MonthlySummaryCard = ({ revenues, expenses, net }) => {
 };
 
 const SourceBadge = ({ source }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const isMomo    = source === 'MoMo';
   const isEspeces = source === 'Liquidité';
   return (
@@ -195,13 +150,19 @@ const SourceBadge = ({ source }) => {
   );
 };
 
-const CategoryBadge = ({ categorie }) => (
-  <View style={styles.categoryBadge}>
-    <Text style={styles.categoryBadgeText}>{categorie}</Text>
-  </View>
-);
+const CategoryBadge = ({ categorie }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  return (
+    <View style={styles.categoryBadge}>
+      <Text style={styles.categoryBadgeText}>{categorie}</Text>
+    </View>
+  );
+};
 
 const TransactionRow = ({ item }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const isDepense = item.type === 'dépense';
   return (
     <View style={styles.transactionCard}>
@@ -220,6 +181,8 @@ const TransactionRow = ({ item }) => {
 };
 
 const GroupHeader = ({ label, total }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const isPositive = total >= 0;
   return (
     <View style={styles.groupHeader}>
@@ -235,25 +198,21 @@ const GroupHeader = ({ label, total }) => {
 // MAIN SCREEN
 // ============================================
 
-export const TransactionsScreen = ({ navigation, route }) => {
-  const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
-  const [search, setSearch]             = useState('');
+export const TransactionsScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
+  const { transactions } = useTransactions();
+
+  const [search, setSearch]                 = useState('');
   const [activeFilter, setActiveFilter]     = useState('Tout');
   const [activeCategory, setActiveCategory] = useState('Toutes');
 
-  // Reçoit une nouvelle transaction depuis AddTransactionScreen
-  useEffect(() => {
-    if (route.params?.newTransaction) {
-      setTransactions((prev) => [route.params.newTransaction, ...prev]);
-      navigation.setParams({ newTransaction: null });
-    }
-  }, [route.params?.newTransaction]);
-
   // Résumé mensuel — calculé sur la liste complète, sans filtre
   const monthlySummary = useMemo(() => {
+    const today   = new Date();
     const monthTxs = transactions.filter((t) => {
       const d = new Date(t.date);
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
     });
     const revenues = monthTxs
       .filter((t) => t.type === 'entrée')
@@ -282,7 +241,7 @@ export const TransactionsScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       <Header />
 
@@ -303,11 +262,11 @@ export const TransactionsScreen = ({ navigation, route }) => {
 
         {/* Recherche */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={20} color="rgba(186, 203, 190, 0.5)" />
+          <Ionicons name="search-outline" size={20} color={colors.placeholder} />
           <TextInput
             style={styles.searchInput}
             placeholder="Rechercher une transaction…"
-            placeholderTextColor="rgba(186, 203, 190, 0.4)"
+            placeholderTextColor={colors.placeholder}
             value={search}
             onChangeText={setSearch}
           />
@@ -361,7 +320,7 @@ export const TransactionsScreen = ({ navigation, route }) => {
         {/* Groupes de transactions */}
         {groups.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={48} color="rgba(186, 203, 190, 0.2)" />
+            <Ionicons name="receipt-outline" size={48} color={colors.placeholder} />
             <Text style={styles.emptyText}>Aucune transaction trouvée</Text>
           </View>
         ) : (
@@ -386,10 +345,9 @@ export const TransactionsScreen = ({ navigation, route }) => {
         onPress={() => navigation.navigate('AddTransaction')}
         activeOpacity={0.85}
       >
-        <Ionicons name="add" size={32} color={COLORS.background} />
+        <Ionicons name="add" size={32} color={colors.onPrimary} />
       </TouchableOpacity>
 
-      <BottomNavBar activeScreen="Transactions" navigation={navigation} />
     </SafeAreaView>
   );
 };
@@ -398,24 +356,12 @@ export const TransactionsScreen = ({ navigation, route }) => {
 // STYLES
 // ============================================
 
-const styles = StyleSheet.create({
+const getStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
-  // ── Header ─────────────────────────────────
-  header: {
-    paddingHorizontal: SPACING.marginX,
-    height: 56,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(12, 19, 34, 0.8)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  logoText: { fontSize: 22, fontWeight: '700' },
-  logoFin:  { color: COLORS.textPrimary },
-  logoCoach:{ color: COLORS.primary },
 
   // ── Scroll ─────────────────────────────────
   scrollView: { flex: 1 },
@@ -429,24 +375,24 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.3,
   },
 
   // ── Carte résumé mensuel ───────────────────
   summaryCard: {
-    backgroundColor: '#0F1E35',
+    backgroundColor: colors.cardBg,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: colors.border,
     gap: 12,
   },
   summaryTitle: {
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   summaryRow: {
@@ -466,7 +412,7 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: 10,
     fontWeight: '500',
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -477,13 +423,13 @@ const styles = StyleSheet.create({
   },
   summaryCurrency: {
     fontSize: 9,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   summarySep: {
     width: 1,
     height: 44,
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    backgroundColor: colors.border,
   },
 
   // ── Recherche ──────────────────────────────
@@ -491,16 +437,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
-    backgroundColor: '#191f2f',
+    backgroundColor: colors.inputBg,
     borderRadius: 12,
     paddingHorizontal: SPACING.md,
     gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
   },
 
@@ -517,38 +463,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: BORDER_RADIUS.full,
-    backgroundColor: '#232a3a',
+    backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   filterChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterChipText: {
     fontSize: 11,
     fontWeight: '500',
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
   },
   filterChipTextActive: {
-    color: '#003822',
+    color: colors.onPrimary,
     fontWeight: '700',
   },
 
   // Chips catégorie (2ème rang, style distinct)
   catChip: {
     backgroundColor: 'transparent',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border,
   },
   catChipActive: {
     backgroundColor: 'rgba(68, 243, 169, 0.1)',
-    borderColor: COLORS.primary,
+    borderColor: colors.primary,
   },
   catChipText: {
-    color: 'rgba(186, 203, 190, 0.5)',
+    color: colors.placeholder,
   },
   catChipTextActive: {
-    color: COLORS.primary,
+    color: colors.primary,
     fontWeight: '700',
   },
 
@@ -561,14 +507,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.divider,
     paddingBottom: 8,
   },
   groupLabel: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
-    color: 'rgba(186, 203, 190, 0.6)',
+    color: colors.placeholder,
   },
   groupTotal: {
     fontSize: 14,
@@ -580,11 +526,11 @@ const styles = StyleSheet.create({
 
   // ── Carte transaction ──────────────────────
   transactionCard: {
-    backgroundColor: 'rgba(15, 30, 53, 0.7)',
+    backgroundColor: colors.cardBg,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: colors.border,
     gap: 8,
   },
   transactionRow: {
@@ -595,7 +541,7 @@ const styles = StyleSheet.create({
   transactionName: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     flex: 1,
     marginRight: 8,
   },
@@ -603,8 +549,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  expenseText: { color: '#FF5A5A' },
-  incomeText:  { color: '#00d68f' },
+  expenseText: { color: colors.expense },
+  incomeText:  { color: colors.income },
 
   // ── Badges ─────────────────────────────────
   badgesRow: {
@@ -612,7 +558,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   categoryBadge: {
-    backgroundColor: '#232a3a',
+    backgroundColor: colors.surfaceContainerHigh,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: BORDER_RADIUS.full,
@@ -620,7 +566,7 @@ const styles = StyleSheet.create({
   categoryBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -633,14 +579,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffcc00',
   },
   badgeBank: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: colors.borderLight,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: colors.border,
   },
   badgeEspeces: {
-    backgroundColor: 'rgba(186, 203, 190, 0.1)',
+    backgroundColor: colors.borderLight,
     borderWidth: 1,
-    borderColor: 'rgba(186, 203, 190, 0.15)',
+    borderColor: colors.border,
   },
   badgeText: {
     fontSize: 10,
@@ -649,7 +595,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   badgeTextMomo: { color: '#000000' },
-  badgeTextBank: { color: COLORS.textPrimary },
+  badgeTextBank: { color: colors.textPrimary },
 
   // ── État vide ──────────────────────────────
   emptyState: {
@@ -659,7 +605,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: 'rgba(186, 203, 190, 0.4)',
+    color: colors.placeholder,
   },
 
   // ── FAB ────────────────────────────────────
@@ -670,10 +616,10 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,

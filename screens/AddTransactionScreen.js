@@ -12,7 +12,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
+import { useCategories } from '../src/context/CategoriesContext';
+import { useTransactions } from '../src/context/TransactionsContext';
 
 const { width } = Dimensions.get('window');
 
@@ -60,103 +63,123 @@ const formatDisplay = (raw) => {
 // SUB-COMPONENTS
 // ============================================
 
-const SourceCard = ({ source, isSelected, onPress }) => (
-  <TouchableOpacity
-    style={[styles.sourceCard, isSelected && styles.sourceCardSelected]}
-    onPress={onPress}
-    activeOpacity={0.8}
-  >
-    <View style={styles.sourceCardTop}>
-      <View style={[styles.sourceIconWrap, isSelected && styles.sourceIconSelected]}>
-        {source.lib === 'community' ? (
-          <MaterialCommunityIcons
-            name={source.icon}
-            size={20}
-            color={isSelected ? COLORS.primary : COLORS.textSecondary}
-          />
-        ) : (
-          <Ionicons
-            name={source.icon}
-            size={20}
-            color={isSelected ? COLORS.primary : COLORS.textSecondary}
-          />
-        )}
+const SourceCard = ({ source, isSelected, onPress }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  return (
+    <TouchableOpacity
+      style={[styles.sourceCard, isSelected && styles.sourceCardSelected]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.sourceCardTop}>
+        <View style={[styles.sourceIconWrap, isSelected && styles.sourceIconSelected]}>
+          {source.lib === 'community' ? (
+            <MaterialCommunityIcons
+              name={source.icon}
+              size={20}
+              color={isSelected ? colors.primary : colors.textSecondary}
+            />
+          ) : (
+            <Ionicons
+              name={source.icon}
+              size={20}
+              color={isSelected ? colors.primary : colors.textSecondary}
+            />
+          )}
+        </View>
+        <View style={[styles.radio, isSelected && styles.radioSelected]}>
+          {isSelected && <View style={styles.radioDot} />}
+        </View>
       </View>
-      <View style={[styles.radio, isSelected && styles.radioSelected]}>
-        {isSelected && <View style={styles.radioDot} />}
+      <View>
+        <Text style={styles.sourceLabel}>{source.label}</Text>
+        <Text style={styles.sourceSub}>{source.sub}</Text>
       </View>
-    </View>
-    <View>
-      <Text style={styles.sourceLabel}>{source.label}</Text>
-      <Text style={styles.sourceSub}>{source.sub}</Text>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
+};
 
-const CategoryChip = ({ label, isActive, onPress }) => (
-  <TouchableOpacity
-    style={[styles.chip, isActive ? styles.chipActive : styles.chipInactive]}
-    onPress={onPress}
-    activeOpacity={0.8}
-  >
-    <Text style={[styles.chipText, isActive ? styles.chipTextActive : styles.chipTextInactive]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
+const CategoryChip = ({ label, color, isActive, onPress }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  return (
+    <TouchableOpacity
+      style={[
+        styles.chip,
+        isActive ? [styles.chipActive, { borderColor: color }] : styles.chipInactive,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.chipDot, { backgroundColor: color }]} />
+      <Text style={[styles.chipText, isActive ? styles.chipTextActive : styles.chipTextInactive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 // ============================================
 // NUMPAD
 // ============================================
 
-const NumPad = ({ onPress }) => (
-  <View style={styles.numpad}>
-    {NUM_ROWS.map((row, ri) => (
-      <View key={ri} style={styles.numpadRow}>
-        {row.map((key) => {
-          const isBackspace = key === '⌫';
-          return (
-            <TouchableOpacity
-              key={key}
-              style={styles.numpadKey}
-              onPress={() => onPress(key)}
-              activeOpacity={0.6}
-            >
-              {isBackspace ? (
-                <Ionicons name="backspace-outline" size={24} color={COLORS.textPrimary} />
-              ) : (
-                <Text style={[styles.numpadKeyText, key === ',' && styles.numpadKeyComma]}>
-                  {key}
-                </Text>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    ))}
-  </View>
-);
+const NumPad = ({ onPress }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+  return (
+    <View style={styles.numpad}>
+      {NUM_ROWS.map((row, ri) => (
+        <View key={ri} style={styles.numpadRow}>
+          {row.map((key) => {
+            const isBackspace = key === '⌫';
+            return (
+              <TouchableOpacity
+                key={key}
+                style={styles.numpadKey}
+                onPress={() => onPress(key)}
+                activeOpacity={0.6}
+              >
+                {isBackspace ? (
+                  <Ionicons name="backspace-outline" size={24} color={colors.textPrimary} />
+                ) : (
+                  <Text style={[styles.numpadKeyText, key === ',' && styles.numpadKeyComma]}>
+                    {key}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+};
 
 // ============================================
 // MAIN SCREEN
 // ============================================
 
 export const AddTransactionScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
+  const { categories: allCategories } = useCategories();
+  const { addTransaction } = useTransactions();
   const [type, setType]               = useState('depense');
   const [source, setSource]           = useState('banque');
   const [rawAmount, setRawAmount]     = useState('');
   const [description, setDescription] = useState('');
   const [numpadVisible, setNumpadVisible] = useState(false);
 
-  const categories = type === 'depense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-  const [category, setCategory] = useState(categories[0]);
+  const [category, setCategory] = useState(
+    () => allCategories[0]?.libelle || '',
+  );
 
   const scrollRef = useRef(null);
 
   // ── Type toggle ───────────────────────────
   const handleTypeChange = (newType) => {
     setType(newType);
-    setCategory((newType === 'depense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES)[0]);
   };
 
   // ── Numpad logic ──────────────────────────
@@ -181,17 +204,15 @@ export const AddTransactionScreen = ({ navigation }) => {
   const handleSave = () => {
     const numeric = parseFloat(rawAmount.replace(',', '.')) || 0;
     if (numeric === 0) return;
-    navigation.navigate('Transactions', {
-      newTransaction: {
-        id: Date.now(),
-        name: description.trim() || (type === 'depense' ? 'Dépense' : 'Revenu'),
-        montant: numeric,
-        type: type === 'depense' ? 'dépense' : 'entrée',
-        categorie: category,
-        source: source === 'banque' ? 'BOA' : 'Liquidité',
-        date: new Date(),
-      },
+    addTransaction({
+      name:      description.trim() || (type === 'depense' ? 'Dépense' : 'Revenu'),
+      montant:   numeric,
+      type:      type === 'depense' ? 'dépense' : 'entrée',
+      categorie: category,
+      source:    source === 'banque' ? 'BOA' : 'Liquidité',
+      date:      new Date(),
     });
+    navigation.goBack();
   };
 
   // ── Derived ───────────────────────────────
@@ -203,12 +224,12 @@ export const AddTransactionScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.textPrimary} />
+          <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {isDepense ? 'Nouvelle dépense' : 'Nouveau revenu'}
@@ -228,9 +249,9 @@ export const AddTransactionScreen = ({ navigation }) => {
             <Ionicons
               name={isDepense ? 'arrow-down' : 'arrow-up'}
               size={12}
-              color={isDepense ? '#ff6b6b' : '#00d68f'}
+              color={isDepense ? colors.error : colors.income}
             />
-            <Text style={[styles.budgetDelta, { color: isDepense ? '#ff6b6b' : '#00d68f' }]}>
+            <Text style={[styles.budgetDelta, { color: isDepense ? colors.error : colors.income }]}>
               {isDepense ? '−' : '+'}{parsedAmount.toLocaleString('fr-FR')} FCFA
             </Text>
           </View>
@@ -277,7 +298,7 @@ export const AddTransactionScreen = ({ navigation }) => {
             <Ionicons
               name="calculator-outline"
               size={18}
-              color={numpadVisible ? COLORS.primary : COLORS.textSecondary}
+              color={numpadVisible ? colors.primary : colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -303,7 +324,11 @@ export const AddTransactionScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Catégorie</Text>
           <View style={styles.chipsWrap}>
+<<<<<<< Updated upstream
             {categories.map((cat) => (
+=======
+            {allCategories.map((cat) => (
+>>>>>>> Stashed changes
               <CategoryChip
                 key={cat}
                 label={cat}
@@ -324,7 +349,7 @@ export const AddTransactionScreen = ({ navigation }) => {
             <TextInput
               style={styles.textInput}
               placeholder={isDepense ? 'Ex : loyer' : 'Ex : augmentation'}
-              placeholderTextColor="rgba(186, 203, 190, 0.4)"
+              placeholderTextColor={colors.placeholder}
               value={description}
               onChangeText={setDescription}
               onFocus={() => {
@@ -353,7 +378,7 @@ export const AddTransactionScreen = ({ navigation }) => {
                 activeOpacity={0.8}
               >
                 <Text style={styles.numpadDoneText}>Terminé</Text>
-                <Ionicons name="checkmark" size={16} color={COLORS.primary} />
+                <Ionicons name="checkmark" size={16} color={colors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -371,7 +396,7 @@ export const AddTransactionScreen = ({ navigation }) => {
           <Ionicons
             name="checkmark-circle"
             size={20}
-            color={!hasAmount ? COLORS.textSecondary : '#003822'}
+            color={!hasAmount ? colors.textSecondary : colors.onPrimary}
           />
           <Text style={[styles.saveBtnText, !hasAmount && styles.saveBtnTextDisabled]}>
             {isDepense ? 'Enregistrer la dépense' : 'Enregistrer le revenu'}
@@ -388,10 +413,10 @@ export const AddTransactionScreen = ({ navigation }) => {
 
 const KEY_SIZE = (width - SPACING.marginX * 2 - 16) / 3;
 
-const styles = StyleSheet.create({
+const getStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
 
   // ── Header ─────────────────────────────────
@@ -402,22 +427,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.marginX,
     height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.borderLight,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: colors.border,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
 
   // ── Budget hero ────────────────────────────
@@ -426,29 +451,29 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: SPACING.marginX,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: colors.borderLight,
     gap: 4,
   },
   budgetLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   budgetAmount: {
     fontSize: 36,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: colors.primary,
     letterSpacing: -1,
   },
   budgetAmountOver: {
-    color: '#ff6b6b',
+    color: colors.error,
   },
   budgetCurrency: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.primary,
   },
   budgetDeltaRow: {
     flexDirection: 'row',
@@ -473,11 +498,11 @@ const styles = StyleSheet.create({
   // ── Toggle ─────────────────────────────────
   toggle: {
     flexDirection: 'row',
-    backgroundColor: '#191f2f',
+    backgroundColor: colors.inputBg,
     borderRadius: 12,
     padding: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   toggleBtn: {
     flex: 1,
@@ -486,18 +511,18 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   toggleBtnActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
   },
   toggleBtnIncomeActive: {
-    backgroundColor: '#00d68f',
+    backgroundColor: colors.income,
   },
   toggleText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
   },
   toggleTextActive: {
-    color: '#003822',
+    color: colors.onPrimary,
     fontWeight: '700',
   },
 
@@ -507,33 +532,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
 
   // ── Montant input ──────────────────────────
   montantInput: {
     height: 52,
-    backgroundColor: '#0F1E35',
+    backgroundColor: colors.cardBg,
     borderRadius: 14,
     paddingHorizontal: SPACING.marginX,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   montantInputFocused: {
-    borderColor: COLORS.primary,
+    borderColor: colors.primary,
     backgroundColor: 'rgba(68, 243, 169, 0.04)',
   },
   montantValue: {
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   montantPlaceholder: {
-    color: 'rgba(186, 203, 190, 0.4)',
+    color: colors.placeholder,
     fontWeight: '400',
     fontSize: 15,
   },
@@ -546,17 +571,17 @@ const styles = StyleSheet.create({
   sourceCard: {
     flex: 1,
     height: 104,
-    backgroundColor: '#191f2f',
+    backgroundColor: colors.inputBg,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: colors.border,
     justifyContent: 'space-between',
   },
   sourceCardSelected: {
     backgroundColor: 'rgba(68, 243, 169, 0.07)',
-    borderColor: COLORS.primary,
-    shadowColor: COLORS.primary,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -570,7 +595,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -582,25 +607,25 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioSelected: { borderColor: COLORS.primary },
+  radioSelected: { borderColor: colors.primary },
   radioDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
   },
   sourceLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   sourceSub: {
     fontSize: 10,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
 
@@ -611,26 +636,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: BORDER_RADIUS.full,
   },
   chipActive: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     borderWidth: 2,
-    borderColor: '#00d68f',
-    shadowColor: '#00d68f',
+    borderColor: colors.income,
+    shadowColor: colors.income,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
   },
   chipInactive: {
-    backgroundColor: '#151b2b',
+    backgroundColor: colors.surfaceContainerHigh,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   chipText: { fontSize: 13, fontWeight: '500' },
+<<<<<<< Updated upstream
   chipTextActive: { color: '#ffffff', fontWeight: '700' },
   chipTextInactive: { color: COLORS.textSecondary },
   chipAdd: {
@@ -645,32 +674,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.4)',
   },
+=======
+  chipTextActive: { color: colors.textPrimary, fontWeight: '700' },
+  chipTextInactive: { color: colors.textSecondary },
+>>>>>>> Stashed changes
 
   // ── Description ────────────────────────────
   inputWrap: {
     height: 52,
-    backgroundColor: '#0F1E35',
+    backgroundColor: colors.cardBg,
     borderRadius: 14,
     paddingHorizontal: SPACING.marginX,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: colors.borderLight,
   },
   textInput: {
     fontSize: 15,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     padding: 0,
   },
 
   // ── Zone bas fixe ───────────────────────────
   bottomArea: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     paddingHorizontal: SPACING.marginX,
     paddingBottom: Platform.OS === 'ios' ? 8 : 12,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: colors.divider,
     marginBottom: 10,
   },
 
@@ -684,7 +717,7 @@ const styles = StyleSheet.create({
   numpadToolbarAmount: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: colors.primary,
     letterSpacing: -0.5,
   },
   numpadToolbarEmpty: {
@@ -698,13 +731,13 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: BORDER_RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: colors.primary,
     backgroundColor: 'rgba(68, 243, 169, 0.08)',
   },
   numpadDoneText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.primary,
   },
 
   // ── NumPad ─────────────────────────────────
@@ -720,50 +753,50 @@ const styles = StyleSheet.create({
     width: KEY_SIZE,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#0F1E35',
+    backgroundColor: colors.cardBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: colors.borderLight,
   },
   numpadKeyText: {
     fontSize: 22,
     fontWeight: '500',
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   numpadKeyComma: {
     fontSize: 26,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
   },
 
   // ── Bouton enregistrer ─────────────────────
   saveBtn: {
     height: 52,
-    backgroundColor: '#00d68f',
+    backgroundColor: colors.primaryDark,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#00d68f',
+    shadowColor: colors.primaryDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 6,
   },
   saveBtnDisabled: {
-    backgroundColor: '#191f2f',
+    backgroundColor: colors.inputBg,
     shadowOpacity: 0,
     elevation: 0,
   },
   saveBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#003822',
+    color: colors.onPrimary,
   },
   saveBtnTextDisabled: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
   },
 });
 

@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../src/constants/theme';
-import { BottomNavBar, CategoryModal } from '../src/components';
+import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { useTheme } from '../src/context/ThemeContext';
+import { CategoryModal, AppHeader } from '../src/components';
 import { useCategories } from '../src/context/CategoriesContext';
 
 // Dépenses fictives par id de catégorie (remplacées par les vraies transactions côté API)
@@ -27,7 +28,8 @@ const BAR_H = 48;
 const getPct = (depense, plafond) =>
   plafond > 0 ? Math.min(Math.round((depense / plafond) * 100), 100) : 0;
 
-const COLOR_OK      = COLORS.primary;
+// Ces couleurs sont sémantiques (état budget), pas thématiques — restent hardcodées
+const COLOR_OK      = '#44f3a9';
 const COLOR_WARNING = '#ffba4b';
 const COLOR_DANGER  = '#ff6b6b';
 
@@ -42,6 +44,8 @@ const getBarColor = (pct) => {
 // ============================================
 
 const GlobalSummaryCard = ({ totalDepense, totalBudget }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const pct       = getPct(totalDepense, totalBudget);
   const remaining = totalBudget - totalDepense;
   const barColor  = getBarColor(pct);
@@ -57,7 +61,7 @@ const GlobalSummaryCard = ({ totalDepense, totalBudget }) => {
           </View>
         </View>
         <View style={styles.summaryIconWrap}>
-          <Ionicons name="wallet" size={24} color={COLORS.primary} />
+          <Ionicons name="wallet" size={24} color={colors.primary} />
         </View>
       </View>
 
@@ -84,6 +88,8 @@ const GlobalSummaryCard = ({ totalDepense, totalBudget }) => {
 };
 
 const AlertBanner = ({ items }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   if (items.length === 0) return null;
   return (
     <View style={styles.alertBanner}>
@@ -111,10 +117,12 @@ const AlertBanner = ({ items }) => {
 };
 
 const CategoryItem = ({ cat, onEdit }) => {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const pct      = getPct(cat.depense, cat.plafond);
   const barColor = getBarColor(pct);
   const fillH    = (pct / 100) * BAR_H;
-  const amtColor = pct >= 90 ? COLOR_DANGER : pct >= 70 ? COLOR_WARNING : COLORS.textSecondary;
+  const amtColor = pct >= 90 ? COLOR_DANGER : pct >= 70 ? COLOR_WARNING : colors.textSecondary;
 
   return (
     <View style={styles.catItem}>
@@ -145,7 +153,7 @@ const CategoryItem = ({ cat, onEdit }) => {
 
       {/* Bouton édition */}
       <TouchableOpacity style={styles.editBtn} onPress={onEdit} activeOpacity={0.7}>
-        <Ionicons name="pencil-outline" size={16} color={COLORS.textSecondary} />
+        <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
       </TouchableOpacity>
     </View>
   );
@@ -156,14 +164,16 @@ const CategoryItem = ({ cat, onEdit }) => {
 // ============================================
 
 export const BudgetScreen = ({ navigation }) => {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors);
   const { categories: allCategories, addCategory, updateCategory } = useCategories();
 
   const [createVisible, setCreateVisible] = useState(false);
   const [editingCat,    setEditingCat]    = useState(null);
 
-  // Catégories de dépense avec plafond — affichées dans le budget
+  // Catégories avec plafond défini — affichées dans le budget
   const budgetCategories = allCategories
-    .filter((c) => c.type === 'depense' && c.plafond != null)
+    .filter((c) => c.plafond != null && c.plafond > 0)
     .map((c) => ({ ...c, depense: MOCK_SPENDING[c.id] ?? 0 }));
 
   const totalBudget  = budgetCategories.reduce((s, c) => s + c.plafond,  0);
@@ -177,32 +187,23 @@ export const BudgetScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.avatarWrap}>
-            <Ionicons name="person" size={15} color={COLORS.primary} />
-          </View>
-          <Text style={styles.headerTitle}>Mes Budgets</Text>
-        </View>
-        <View style={styles.headerRight}>
+      <AppHeader
+        title="Budgets"
+        subtitle={monthLabel}
+        rightContent={
           <TouchableOpacity
-            style={styles.monthBtn}
+            style={[styles.monthBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
             activeOpacity={0.8}
-            onPress={() =>
-              Alert.alert('Période', 'La sélection de période arrive prochainement.', [{ text: 'OK' }])
-            }
+            onPress={() => Alert.alert('Période', 'La sélection de période arrive prochainement.', [{ text: 'OK' }])}
           >
-            <Text style={styles.monthBtnText}>{monthLabel}</Text>
-            <Ionicons name="chevron-down" size={14} color={COLORS.textSecondary} />
+            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+            <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.8}>
-            <Ionicons name="notifications" size={22} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+        }
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -223,7 +224,7 @@ export const BudgetScreen = ({ navigation }) => {
               onPress={() => setCreateVisible(true)}
               activeOpacity={0.8}
             >
-              <Ionicons name="add" size={18} color={COLORS.primary} />
+              <Ionicons name="add" size={18} color={colors.primary} />
               <Text style={styles.addCatBtnText}>Nouvelle</Text>
             </TouchableOpacity>
           </View>
@@ -267,7 +268,6 @@ export const BudgetScreen = ({ navigation }) => {
         }}
       />
 
-      <BottomNavBar activeScreen="Budget" navigation={navigation} />
     </SafeAreaView>
   );
 };
@@ -276,37 +276,15 @@ export const BudgetScreen = ({ navigation }) => {
 // STYLES
 // ============================================
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const getStyles = (colors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
 
-  // ── Header ─────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.marginX,
-    height: 56,
-    backgroundColor: 'rgba(12,19,34,0.8)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(68,243,169,0.1)',
-    borderWidth: 1, borderColor: 'rgba(68,243,169,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.primary, letterSpacing: -0.3 },
   monthBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: COLORS.surfaceContainerHigh,
-    paddingHorizontal: 12, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
   },
-  monthBtnText: { fontSize: 11, fontWeight: '500', color: COLORS.textPrimary },
 
   // ── Scroll ─────────────────────────────────
   scrollView: { flex: 1 },
@@ -318,21 +296,21 @@ const styles = StyleSheet.create({
 
   // ── Résumé global ──────────────────────────
   summaryCard: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.stackLg,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
+    borderColor: colors.border,
     gap: SPACING.stackMd,
   },
   summaryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   summaryCaption: {
     fontSize: 10, fontWeight: '700', letterSpacing: 1.5,
-    color: COLORS.textSecondary, textTransform: 'uppercase', marginBottom: 4,
+    color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 4,
   },
   summaryAmountRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  summaryAmount:   { fontSize: 36, fontWeight: '700', color: COLORS.textPrimary, letterSpacing: -1 },
-  summaryCurrency: { fontSize: 16, fontWeight: '500', color: 'rgba(220,226,248,0.45)', marginBottom: 6 },
+  summaryAmount:   { fontSize: 36, fontWeight: '700', color: colors.textPrimary, letterSpacing: -1 },
+  summaryCurrency: { fontSize: 16, fontWeight: '500', color: colors.placeholder, marginBottom: 6 },
   summaryIconWrap: {
     width: 44, height: 44, borderRadius: 12,
     backgroundColor: 'rgba(68,243,169,0.1)',
@@ -340,15 +318,15 @@ const styles = StyleSheet.create({
   },
   summaryProgressWrap: { gap: 8 },
   summaryProgressLabels: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryProgressLeft:  { fontSize: 11, fontWeight: '500', color: COLORS.textSecondary },
-  summaryProgressRight: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
+  summaryProgressLeft:  { fontSize: 11, fontWeight: '500', color: colors.textSecondary },
+  summaryProgressRight: { fontSize: 11, fontWeight: '700', color: colors.primary },
   progressTrack: {
-    height: 10, backgroundColor: COLORS.surfaceContainerHigh,
+    height: 10, backgroundColor: colors.surfaceContainerHigh,
     borderRadius: BORDER_RADIUS.full, overflow: 'hidden',
   },
   progressFill:  { height: '100%', borderRadius: BORDER_RADIUS.full },
-  summaryRemainingText: { fontSize: 13, color: 'rgba(220,226,248,0.6)', marginTop: 2 },
-  summaryRemainingBold: { color: COLORS.textPrimary, fontWeight: '700' },
+  summaryRemainingText: { fontSize: 13, color: colors.placeholder, marginTop: 2 },
+  summaryRemainingBold: { color: colors.textPrimary, fontWeight: '700' },
 
   // ── Alertes ────────────────────────────────
   alertBanner: {
@@ -361,17 +339,17 @@ const styles = StyleSheet.create({
   },
   alertBannerRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   alertBannerTitle:  { fontSize: 13, fontWeight: '700', color: COLOR_WARNING },
-  alertBannerItem:   { fontSize: 12, color: 'rgba(220,226,248,0.65)', paddingLeft: 2 },
-  alertBannerCatName:{ color: COLORS.textPrimary, fontWeight: '600' },
+  alertBannerItem:   { fontSize: 12, color: colors.placeholder, paddingLeft: 2 },
+  alertBannerCatName:{ color: colors.textPrimary, fontWeight: '600' },
   alertBannerPct:    { fontWeight: '700' },
 
   // ── Carte liste catégories ─────────────────
   catCard: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
+    borderColor: colors.border,
   },
   catCardHeader: {
     flexDirection: 'row',
@@ -380,9 +358,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.stackLg,
     paddingVertical: SPACING.stackMd,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomColor: colors.divider,
   },
-  catCardTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, letterSpacing: -0.2 },
+  catCardTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.2 },
   addCatBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,7 +372,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(68,243,169,0.25)',
   },
-  addCatBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  addCatBtnText: { fontSize: 12, fontWeight: '700', color: colors.primary },
 
   // ── Item catégorie ─────────────────────────
   catItem: {
@@ -404,7 +382,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.stackMd,
     gap: SPACING.stackMd,
   },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginHorizontal: SPACING.stackLg },
+  divider: { height: 1, backgroundColor: colors.divider, marginHorizontal: SPACING.stackLg },
   catColorBadge: {
     width: 42, height: 42, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
@@ -413,7 +391,7 @@ const styles = StyleSheet.create({
   catColorDot: { width: 20, height: 20, borderRadius: 10 },
   catInfo: { flex: 1, gap: 4 },
   catNameRow: { flexDirection: 'row', alignItems: 'center' },
-  catName:  { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
+  catName:  { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
   catAlert: { marginLeft: 6 },
   catAmounts: { fontSize: 11, fontWeight: '500' },
 
@@ -422,7 +400,7 @@ const styles = StyleSheet.create({
   miniBarPct:   { fontSize: 11, fontWeight: '700' },
   miniBarTrack: {
     width: 16, height: BAR_H,
-    backgroundColor: COLORS.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerHigh,
     borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden',
   },
   miniBarFill:  { width: '100%', borderRadius: 8 },
@@ -430,14 +408,14 @@ const styles = StyleSheet.create({
   // ── Bouton édition ─────────────────────────
   editBtn: {
     width: 32, height: 32, borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colors.borderLight,
     alignItems: 'center', justifyContent: 'center',
   },
 
   // ── État vide ──────────────────────────────
   emptyState: { alignItems: 'center', paddingVertical: 32, gap: 6 },
-  emptyText:  { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  emptyHint:  { fontSize: 12, color: 'rgba(186,203,190,0.4)' },
+  emptyText:  { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  emptyHint:  { fontSize: 12, color: colors.placeholder },
 });
 
 export default BudgetScreen;

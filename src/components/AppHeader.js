@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 
-export const AppHeader = ({ title, subtitle, rightContent, avatarLabel }) => {
+export const AppHeader = ({ title, subtitle, rightContent, avatarLabel, showThemeToggle = false }) => {
   const { colors, isDark, toggleTheme } = useTheme();
 
   return (
@@ -40,18 +40,19 @@ export const AppHeader = ({ title, subtitle, rightContent, avatarLabel }) => {
       <View style={styles.right}>
         {rightContent ?? null}
 
-        {/* Toggle thème — toujours présent, même position */}
-        <TouchableOpacity
-          style={[styles.iconBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
-          onPress={toggleTheme}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={isDark ? 'sunny-outline' : 'moon-outline'}
-            size={17}
-            color={isDark ? '#F5B731' : colors.primary}
-          />
-        </TouchableOpacity>
+        {showThemeToggle && (
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
+            onPress={toggleTheme}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              size={17}
+              color={isDark ? '#F5B731' : colors.primary}
+            />
+          </TouchableOpacity>
+        )}
 
         {/* Avatar initiale — Dashboard seulement */}
         {avatarLabel ? (

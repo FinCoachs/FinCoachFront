@@ -6,6 +6,8 @@ import {
   LoginScreen,
   ProfileSetupScreen,
   AddTransactionScreen,
+  RecommandationsScreen,
+  ReportsScreen,
 } from '../../screens';
 import { SwipeNavigator } from './SwipeNavigator';
 import { useTheme } from '../context/ThemeContext';
@@ -56,6 +58,20 @@ export const AppNavigator = () => {
           name="AddTransaction"
           component={AddTransactionScreen}
           options={{ animation: 'slide_from_bottom' }}
+        />
+
+        {/* ── Sous-écrans Coach IA ── */}
+        <Stack.Screen
+          name="Recommandations"
+          component={RecommandationsScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+
+        {/* ── Statistiques ── */}
+        <Stack.Screen
+          name="Reports"
+          component={ReportsScreen}
+          options={{ animation: 'slide_from_right' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,9 +13,7 @@ import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { CategoryModal, AppHeader } from '../src/components';
 import { useCategories } from '../src/context/CategoriesContext';
-
-// Dépenses fictives par id de catégorie (remplacées par les vraies transactions côté API)
-const MOCK_SPENDING = { 1: 34000, 2: 16400, 3: 19000, 4: 8900, 5: 0, 6: 0 };
+import { useTransactions } from '../src/context/TransactionsContext';
 
 const BAR_H = 48;
 
@@ -116,7 +113,7 @@ const AlertBanner = ({ items }) => {
   );
 };
 
-const CategoryItem = ({ cat, onEdit }) => {
+const CategoryItem = ({ cat }) => {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const pct      = getPct(cat.depense, cat.plafond);
@@ -126,12 +123,10 @@ const CategoryItem = ({ cat, onEdit }) => {
 
   return (
     <View style={styles.catItem}>
-      {/* Point de couleur de la catégorie */}
       <View style={[styles.catColorBadge, { backgroundColor: `${cat.color}20`, borderColor: `${cat.color}50` }]}>
         <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
       </View>
 
-      {/* Infos */}
       <View style={styles.catInfo}>
         <View style={styles.catNameRow}>
           <Text style={styles.catName}>{cat.libelle}</Text>
@@ -143,18 +138,12 @@ const CategoryItem = ({ cat, onEdit }) => {
         </Text>
       </View>
 
-      {/* Mini barre verticale */}
       <View style={styles.miniBarWrap}>
         <Text style={[styles.miniBarPct, { color: amtColor }]}>{pct}%</Text>
         <View style={styles.miniBarTrack}>
           <View style={[styles.miniBarFill, { height: fillH, backgroundColor: barColor }]} />
         </View>
       </View>
-
-      {/* Bouton édition */}
-      <TouchableOpacity style={styles.editBtn} onPress={onEdit} activeOpacity={0.7}>
-        <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -166,44 +155,32 @@ const CategoryItem = ({ cat, onEdit }) => {
 export const BudgetScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors);
-  const { categories: allCategories, addCategory, updateCategory } = useCategories();
+  const { categories: allCategories, addCategory } = useCategories();
+  const { transactions }                           = useTransactions();
 
   const [createVisible, setCreateVisible] = useState(false);
-  const [editingCat,    setEditingCat]    = useState(null);
 
-  // Catégories avec plafond défini — affichées dans le budget
+  // Catégories avec plafond défini — dépenses calculées depuis les vraies transactions
   const budgetCategories = allCategories
     .filter((c) => c.plafond != null && c.plafond > 0)
-    .map((c) => ({ ...c, depense: MOCK_SPENDING[c.id] ?? 0 }));
+    .map((c) => {
+      const depense = transactions
+        .filter((t) => t.categorie === c.libelle && t.type === 'dépense')
+        .reduce((sum, t) => sum + t.montant, 0);
+      return { ...c, depense };
+    });
 
   const totalBudget  = budgetCategories.reduce((s, c) => s + c.plafond,  0);
   const totalDepense = budgetCategories.reduce((s, c) => s + c.depense, 0);
   const alertItems   = budgetCategories.filter((c) => getPct(c.depense, c.plafond) >= 70);
 
-  const monthLabel = (() => {
-    const raw = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  })();
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* ── Header ── */}
-      <AppHeader
-        title="Budgets"
-        subtitle={monthLabel}
-        rightContent={
-          <TouchableOpacity
-            style={[styles.monthBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
-            activeOpacity={0.8}
-            onPress={() => Alert.alert('Période', 'La sélection de période arrive prochainement.', [{ text: 'OK' }])}
-          >
-            <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
-            <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
-          </TouchableOpacity>
-        }
-      />
+      <AppHeader title="Budgets" />
 
       <ScrollView
         style={styles.scrollView}
@@ -237,10 +214,7 @@ export const BudgetScreen = ({ navigation }) => {
           ) : (
             budgetCategories.map((cat, i) => (
               <View key={cat.id}>
-                <CategoryItem
-                  cat={cat}
-                  onEdit={() => setEditingCat(cat)}
-                />
+                <CategoryItem cat={cat} />
                 {i < budgetCategories.length - 1 && <View style={styles.divider} />}
               </View>
             ))
@@ -257,16 +231,6 @@ export const BudgetScreen = ({ navigation }) => {
         onSave={(newCat) => addCategory(newCat)}
       />
 
-      {/* Modal — Modifier une catégorie */}
-      <CategoryModal
-        visible={editingCat !== null}
-        onClose={() => setEditingCat(null)}
-        initialValues={editingCat}
-        onSave={(updates) => {
-          updateCategory(editingCat.id, updates);
-          setEditingCat(null);
-        }}
-      />
 
     </SafeAreaView>
   );
@@ -278,13 +242,6 @@ export const BudgetScreen = ({ navigation }) => {
 
 const getStyles = (colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-
-  monthBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1,
-  },
 
   // ── Scroll ─────────────────────────────────
   scrollView: { flex: 1 },
@@ -404,13 +361,6 @@ const getStyles = (colors) => StyleSheet.create({
     borderRadius: 8, justifyContent: 'flex-end', overflow: 'hidden',
   },
   miniBarFill:  { width: '100%', borderRadius: 8 },
-
-  // ── Bouton édition ─────────────────────────
-  editBtn: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: colors.borderLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
 
   // ── État vide ──────────────────────────────
   emptyState: { alignItems: 'center', paddingVertical: 32, gap: 6 },

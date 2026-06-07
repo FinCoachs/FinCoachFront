@@ -6,3 +6,4 @@ export { SocialButton } from './SocialButton';
 export { BottomNavBar } from './BottomNavBar';
 export { CategoryModal } from './CategoryModal';
 export { ThemeToggle } from './ThemeToggle';
+export { MomoImportModal } from './MomoImportModal';

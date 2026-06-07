@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { useUser } from '../src/context/UserContext';
 import { useTransactions } from '../src/context/TransactionsContext';
 import { useCategories } from '../src/context/CategoriesContext';
 import { AppHeader } from '../src/components';
@@ -46,13 +47,16 @@ const getPctColor = (pct) =>
 // ── Header ────────────────────────────────────────────────
 
 const Header = () => {
-  const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const { firstName, initial } = useUser();
+  const date     = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   const subtitle = date.charAt(0).toUpperCase() + date.slice(1);
+  const name     = firstName || 'vous';
   return (
     <AppHeader
-      title="Bonjour, Alex 👋"
+      title={`Bonjour, ${name} 👋`}
       subtitle={subtitle}
-      avatarLabel="A"
+      avatarLabel={initial || '?'}
+      showThemeToggle
     />
   );
 };
@@ -82,10 +86,6 @@ const BalanceCard = ({ totalBalance, monthlyIncome, monthlyExpense }) => {
             {formatAmount(totalBalance)}{' '}
             <Text style={s.balanceCurrency}>FCFA</Text>
           </Text>
-        </View>
-        <View style={s.trendBadge}>
-          <Ionicons name="trending-up" size={14} color={colors.primary} />
-          <Text style={s.trendText}>+3.2%</Text>
         </View>
       </View>
 
@@ -317,15 +317,25 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
 
 // ── Écran principal ───────────────────────────────────────
 
-export const DashboardScreen = () => {
+export const DashboardScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const s = getStyles(colors);
 
-  const { transactions } = useTransactions();
-  const { categories }   = useCategories();
+  const { transactions, operatorBalances } = useTransactions();
+  const { categories }                     = useCategories();
 
-  const [accounts,      setAccounts]      = useState(INITIAL_ACCOUNTS);
-  const [modalVisible,  setModalVisible]  = useState(false);
+  const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  // Sync soldes Mobile Money depuis les SMS importés
+  useEffect(() => {
+    setAccounts((prev) => prev.map((a) => {
+      if (a.id === 'momo'    && operatorBalances.mtn     != null) return { ...a, balance: operatorBalances.mtn     };
+      if (a.id === 'moov'    && operatorBalances.moov    != null) return { ...a, balance: operatorBalances.moov    };
+      if (a.id === 'celtiis' && operatorBalances.celtiis != null) return { ...a, balance: operatorBalances.celtiis };
+      return a;
+    }));
+  }, [operatorBalances]);
 
   // 4 transactions les plus récentes
   const recentTxs = transactions.slice(0, 4);
@@ -423,6 +433,17 @@ export const DashboardScreen = () => {
           </View>
         )}
 
+        {/* Bouton Statistiques */}
+        <TouchableOpacity
+          style={[s.statsBtn, { borderColor: colors.primary, backgroundColor: `${colors.primary}0D` }]}
+          onPress={() => navigation.navigate('Reports')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="bar-chart-outline" size={18} color={colors.primary} />
+          <Text style={[s.statsBtnText, { color: colors.primary }]}>Voir mes statistiques</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+        </TouchableOpacity>
+
         {/* Transactions récentes */}
         <View style={s.section}>
           <SectionTitle title="Transactions récentes" />
@@ -476,12 +497,6 @@ const getStyles = (colors) => StyleSheet.create({
   balanceLabel:   { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: colors.textSecondary, marginBottom: 6 },
   balanceAmount:  { fontSize: 34, fontWeight: '800', color: colors.textPrimary, letterSpacing: -1 },
   balanceCurrency:{ fontSize: 16, fontWeight: '500', color: colors.textSecondary },
-  trendBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: `${colors.primary}20`,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: BORDER_RADIUS.full,
-  },
-  trendText: { fontSize: 12, fontWeight: '700', color: colors.primary },
 
   balanceStats:  { flexDirection: 'row', alignItems: 'center', paddingTop: SPACING.stackSm },
   statItem:      { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -513,6 +528,13 @@ const getStyles = (colors) => StyleSheet.create({
   accountBalanceWrap: { alignItems: 'flex-end' },
   accountBalance:   { fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   accountCurrency:  { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+
+  // Stats button
+  statsBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    height: 48, borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5, gap: 8,
+  },
+  statsBtnText: { flex: 1, fontSize: 14, fontWeight: '700', marginLeft: 4 },
 
   // Add button
   addBtn: {

@@ -7,21 +7,98 @@ import {
   TouchableOpacity,
   StatusBar,
   TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useTransactions } from '../src/context/TransactionsContext';
-import { AppHeader } from '../src/components';
+import { AppHeader, MomoImportModal } from '../src/components';
 
 
 const TODAY     = new Date();
 const YESTERDAY = new Date(TODAY);
 YESTERDAY.setDate(TODAY.getDate() - 1);
 
-// Filtres principaux (Module 4 : période, type, source)
-const FILTERS = ['Tout', 'Ce mois', 'Dépenses', 'Revenus', 'Banque', 'MoMo', 'Espèces'];
+const TYPE_FILTERS = ['Revenus', 'Dépenses'];
+
+const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+// ── Sélecteur mois / année ────────────────────────────────
+
+const MonthYearPicker = ({ visible, month, year, onSelect, onClose, colors }) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <TouchableOpacity style={pickerStyles.overlay} activeOpacity={1} onPress={onClose} />
+    <View style={[pickerStyles.sheet, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}>
+      {/* Année */}
+      <View style={pickerStyles.yearRow}>
+        <TouchableOpacity onPress={() => onSelect(month, year - 1)} style={pickerStyles.yearBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <Text style={[pickerStyles.yearText, { color: colors.textPrimary }]}>{year}</Text>
+        <TouchableOpacity
+          onPress={() => onSelect(month, year + 1)}
+          style={pickerStyles.yearBtn}
+          activeOpacity={0.7}
+          disabled={year >= new Date().getFullYear()}
+        >
+          <Ionicons name="chevron-forward" size={20} color={year >= new Date().getFullYear() ? colors.placeholder : colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Grille mois */}
+      <View style={pickerStyles.monthGrid}>
+        {MOIS.map((m, i) => {
+          const active = i === month && year === year;
+          const isFuture = year === new Date().getFullYear() && i > new Date().getMonth();
+          return (
+            <TouchableOpacity
+              key={m}
+              disabled={isFuture}
+              onPress={() => { onSelect(i, year); onClose(); }}
+              style={[
+                pickerStyles.monthCell,
+                i === month && { backgroundColor: colors.primary },
+              ]}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                pickerStyles.monthText,
+                { color: isFuture ? colors.placeholder : i === month ? colors.onPrimary : colors.textSecondary },
+              ]}>
+                {m}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  </Modal>
+);
+
+const pickerStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheet: {
+    position: 'absolute', top: 70, right: 16,
+    borderRadius: 16, borderWidth: 1,
+    padding: 16, width: 240,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3, shadowRadius: 16, elevation: 12,
+  },
+  yearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  yearBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  yearText: { fontSize: 16, fontWeight: '700' },
+  monthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  monthCell: {
+    width: '30%', paddingVertical: 8,
+    borderRadius: 8, alignItems: 'center',
+  },
+  monthText: { fontSize: 12, fontWeight: '600' },
+});
 
 // ============================================
 // HELPERS
@@ -54,27 +131,11 @@ const groupByDate = (list) => {
 
 const applyFilters = (list, filter, categorie) => {
   let result = list;
-  const today = new Date();
-
-  switch (filter) {
-    case 'Dépenses': result = result.filter((t) => t.type === 'dépense'); break;
-    case 'Revenus':  result = result.filter((t) => t.type === 'entrée');  break;
-    case 'Banque':   result = result.filter((t) => t.source !== 'MoMo' && t.source !== 'Liquidité'); break;
-    case 'MoMo':     result = result.filter((t) => t.source === 'MoMo');       break;
-    case 'Espèces':  result = result.filter((t) => t.source === 'Liquidité');  break;
-    case 'Ce mois':
-      result = result.filter((t) => {
-        const d = new Date(t.date);
-        return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-      });
-      break;
-    default: break;
-  }
-
+  if (filter === 'Dépenses') result = result.filter((t) => t.type === 'dépense');
+  if (filter === 'Revenus')  result = result.filter((t) => t.type === 'entrée');
   if (categorie && categorie !== 'Toutes') {
     result = result.filter((t) => t.categorie === categorie);
   }
-
   return result;
 };
 
@@ -82,7 +143,6 @@ const applyFilters = (list, filter, categorie) => {
 // SUB-COMPONENTS
 // ============================================
 
-const Header = () => <AppHeader title="Transactions" />;
 
 // Module 5 — Résumé mensuel
 const MonthlySummaryCard = ({ revenues, expenses, net }) => {
@@ -206,22 +266,36 @@ export const TransactionsScreen = ({ navigation }) => {
   const [search, setSearch]                 = useState('');
   const [activeFilter, setActiveFilter]     = useState('Tout');
   const [activeCategory, setActiveCategory] = useState('Toutes');
+  const [pickerVisible, setPickerVisible]   = useState(false);
+  const [momoVisible,   setMomoVisible]     = useState(false);
+  const [viewMode,      setViewMode]        = useState('Mois'); // 'Semaine' | 'Mois'
+  const [selMonth, setSelMonth]             = useState(new Date().getMonth());
+  const [selYear,  setSelYear]              = useState(new Date().getFullYear());
 
-  // Résumé mensuel — calculé sur la liste complète, sans filtre
+  // Plage selon le mode (Semaine = 7 derniers jours, Mois = mois sélectionné)
+  const weekStart = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d;
+  }, []);
+
+  const inPeriod = (date) => {
+    const d = new Date(date);
+    if (viewMode === 'Semaine') return d >= weekStart;
+    return d.getMonth() === selMonth && d.getFullYear() === selYear;
+  };
+
+  const periodLabel = useMemo(() => {
+    if (viewMode === 'Semaine') return '7 derniers jours';
+    const raw = new Date(selYear, selMonth).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }, [viewMode, selMonth, selYear]);
+
+  // Résumé de la période active
   const monthlySummary = useMemo(() => {
-    const today   = new Date();
-    const monthTxs = transactions.filter((t) => {
-      const d = new Date(t.date);
-      return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    });
-    const revenues = monthTxs
-      .filter((t) => t.type === 'entrée')
-      .reduce((sum, t) => sum + t.montant, 0);
-    const expenses = monthTxs
-      .filter((t) => t.type === 'dépense')
-      .reduce((sum, t) => sum + t.montant, 0);
+    const periodTxs = transactions.filter((t) => inPeriod(t.date));
+    const revenues = periodTxs.filter((t) => t.type === 'entrée').reduce((sum, t) => sum + t.montant, 0);
+    const expenses = periodTxs.filter((t) => t.type === 'dépense').reduce((sum, t) => sum + t.montant, 0);
     return { revenues, expenses, net: revenues - expenses };
-  }, [transactions]);
+  }, [transactions, viewMode, selMonth, selYear]);
 
   // Catégories extraites dynamiquement des transactions existantes
   const categories = useMemo(() => {
@@ -231,19 +305,57 @@ export const TransactionsScreen = ({ navigation }) => {
 
   const groups = useMemo(() => {
     let list = applyFilters(transactions, activeFilter, activeCategory);
+    list = list.filter((t) => inPeriod(t.date));
     if (search.trim()) {
-      list = list.filter((t) =>
-        t.name.toLowerCase().includes(search.toLowerCase())
-      );
+      list = list.filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
     }
     return groupByDate(list);
-  }, [transactions, activeFilter, activeCategory, search]);
+  }, [transactions, activeFilter, activeCategory, search, viewMode, selMonth, selYear]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
-      <Header />
+      <AppHeader
+        title="Transactions"
+        subtitle={periodLabel}
+        rightContent={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.monthBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
+              onPress={() => setMomoVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="download-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.monthBtnLabel, { color: colors.textSecondary }]}>SMS</Text>
+            </TouchableOpacity>
+            {viewMode === 'Mois' && (
+              <TouchableOpacity
+                style={[styles.monthBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
+                onPress={() => setPickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
+                <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        }
+      />
+
+      <MonthYearPicker
+        visible={pickerVisible}
+        month={selMonth}
+        year={selYear}
+        onSelect={(m, y) => { setSelMonth(m); setSelYear(y); }}
+        onClose={() => setPickerVisible(false)}
+        colors={colors}
+      />
+
+      <MomoImportModal
+        visible={momoVisible}
+        onClose={() => setMomoVisible(false)}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -253,7 +365,29 @@ export const TransactionsScreen = ({ navigation }) => {
       >
         <Text style={styles.screenTitle}>Mes Transactions</Text>
 
-        {/* Module 5 — Résumé mensuel */}
+        {/* Toggle Semaine / Mois */}
+        <View style={[styles.viewToggle, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}>
+          {['Semaine', 'Mois'].map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[
+                styles.viewToggleBtn,
+                viewMode === m && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setViewMode(m)}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.viewToggleTxt,
+                { color: viewMode === m ? colors.onPrimary : colors.textSecondary },
+              ]}>
+                {m}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Résumé de la période */}
         <MonthlySummaryCard
           revenues={monthlySummary.revenues}
           expenses={monthlySummary.expenses}
@@ -272,50 +406,58 @@ export const TransactionsScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Filtres principaux : période, type, source */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterChip, activeFilter === f && styles.filterChipActive]}
-              onPress={() => setActiveFilter(f)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.filterChipText, activeFilter === f && styles.filterChipTextActive]}>
-                {f}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Filtres type : Revenus / Dépenses */}
+        <View style={styles.typeFiltersRow}>
+          {TYPE_FILTERS.map((f) => {
+            const active    = activeFilter === f;
+            const isRevenu  = f === 'Revenus';
+            const dotColor  = isRevenu ? colors.income : colors.expense;
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.typeChip,
+                  { borderColor: active ? dotColor : colors.borderLight },
+                  active && { backgroundColor: `${dotColor}12` },
+                ]}
+                onPress={() => setActiveFilter(active ? 'Tout' : f)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.typeDot, { backgroundColor: dotColor, opacity: active ? 1 : 0.45 }]} />
+                <Text style={[styles.typeChipText, { color: active ? dotColor : colors.textSecondary }]}>
+                  {f}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-        {/* Filtres catégories (Module 4) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.filterChip, styles.catChip, activeCategory === cat && styles.catChipActive]}
-              onPress={() => setActiveCategory(cat)}
-              activeOpacity={0.8}
-            >
-              <Text style={[
-                styles.filterChipText,
-                activeCategory === cat ? styles.catChipTextActive : styles.catChipText,
-              ]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Filtres catégories */}
+        <View style={styles.catSection}>
+          <Text style={[styles.catSectionLabel, { color: colors.textSecondary }]}>Catégorie</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtersScroll}
+            contentContainerStyle={styles.filtersContent}
+          >
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.filterChip, styles.catChip, activeCategory === cat && styles.catChipActive]}
+                onPress={() => setActiveCategory(cat)}
+                activeOpacity={0.8}
+              >
+                <Text style={[
+                  styles.filterChipText,
+                  activeCategory === cat ? styles.catChipTextActive : styles.catChipText,
+                ]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Groupes de transactions */}
         {groups.length === 0 ? (
@@ -361,6 +503,24 @@ const getStyles = (colors) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+
+  monthBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+  },
+  monthBtnLabel: { fontSize: 12, fontWeight: '600' },
+
+  viewToggle: {
+    flexDirection: 'row', borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1, padding: 3, alignSelf: 'flex-start',
+  },
+  viewToggleBtn: {
+    paddingHorizontal: 18, paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  viewToggleTxt: { fontSize: 13, fontWeight: '700' },
 
 
   // ── Scroll ─────────────────────────────────
@@ -450,6 +610,42 @@ const getStyles = (colors) => StyleSheet.create({
     fontSize: 14,
   },
 
+  // ── Filtres type (Revenus / Dépenses) ──────
+  typeFiltersRow: {
+    flexDirection: 'row',
+    gap: SPACING.stackSm,
+  },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  typeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  typeChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // ── Section catégorie ───────────────────────
+  catSection: {
+    gap: SPACING.stackSm,
+  },
+  catSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
   // ── Chips de filtre ────────────────────────
   filtersScroll: {
     marginHorizontal: -SPACING.marginX,
@@ -467,21 +663,13 @@ const getStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
   filterChipText: {
     fontSize: 11,
     fontWeight: '500',
     color: colors.textSecondary,
   },
-  filterChipTextActive: {
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
 
-  // Chips catégorie (2ème rang, style distinct)
+  // Chips catégorie
   catChip: {
     backgroundColor: 'transparent',
     borderColor: colors.border,

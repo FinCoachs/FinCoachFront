@@ -324,16 +324,13 @@ export const AddTransactionScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Catégorie</Text>
           <View style={styles.chipsWrap}>
-<<<<<<< Updated upstream
-            {categories.map((cat) => (
-=======
             {allCategories.map((cat) => (
->>>>>>> Stashed changes
               <CategoryChip
-                key={cat}
-                label={cat}
-                isActive={category === cat}
-                onPress={() => setCategory(cat)}
+                key={cat.id}
+                label={cat.libelle}
+                color={cat.color}
+                isActive={category === cat.libelle}
+                onPress={() => setCategory(cat.libelle)}
               />
             ))}
             <TouchableOpacity style={styles.chipAdd} activeOpacity={0.8}>
@@ -659,25 +656,20 @@ const getStyles = (colors) => StyleSheet.create({
     borderColor: colors.borderLight,
   },
   chipText: { fontSize: 13, fontWeight: '500' },
-<<<<<<< Updated upstream
-  chipTextActive: { color: '#ffffff', fontWeight: '700' },
-  chipTextInactive: { color: COLORS.textSecondary },
+  chipTextActive: { color: colors.textPrimary, fontWeight: '700' },
+  chipTextInactive: { color: colors.textSecondary },
   chipAdd: {
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: BORDER_RADIUS.full,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: colors.borderLight,
   },
   chipAddText: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: colors.placeholder,
   },
-=======
-  chipTextActive: { color: colors.textPrimary, fontWeight: '700' },
-  chipTextInactive: { color: colors.textSecondary },
->>>>>>> Stashed changes
 
   // ── Description ────────────────────────────
   inputWrap: {

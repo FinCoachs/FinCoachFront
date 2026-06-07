@@ -5,3 +5,7 @@ export { ProfileSetupScreen } from './ProfileSetupScreen';
 export { DashboardScreen } from './DashboardScreen';
 export { TransactionsScreen } from './TransactionsScreen';
 export { AddTransactionScreen } from './AddTransactionScreen';
+export { CoachIAScreen } from './CoachIAScreen';
+export { RecommandationsScreen } from './RecommandationsScreen';
+export { ProfileScreen } from './ProfileScreen';
+export { ReportsScreen } from './ReportsScreen';

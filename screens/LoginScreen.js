@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,67 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { useUser } from '../src/context/UserContext';
 import { Button, Input } from '../src/components';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// ─── Remplacez par vos IDs depuis Google Cloud Console ──────────────────────
+// https://console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0
+const GOOGLE_CLIENT_IDS = {
+  webClientId:     'VOTRE_WEB_CLIENT_ID.apps.googleusercontent.com',
+  androidClientId: 'VOTRE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+};
 
 export const LoginScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
+  const { updateUser, user } = useUser();
   const styles = getStyles(colors);
 
   const [formData, setFormData] = useState({ emailOrPhone: '', password: '' });
   const [errors, setErrors]     = useState({});
+
+  const [, response, promptGoogleAsync] = Google.useAuthRequest({
+    clientId:        GOOGLE_CLIENT_IDS.webClientId,
+    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const token = response.authentication?.accessToken;
+      if (!token) return;
+      fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((info) => {
+          updateUser({ fullName: info.name || '', email: info.email || '' });
+          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+        })
+        .catch(() => Alert.alert('Erreur', 'Impossible de récupérer les informations Google.'));
+    } else if (response?.type === 'error') {
+      Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
+    }
+  }, [response]);
+
+  const handleGoogleLogin = () => {
+    if (GOOGLE_CLIENT_IDS.webClientId.startsWith('VOTRE_')) {
+      Alert.alert(
+        'Configuration requise',
+        'Les identifiants Google OAuth ne sont pas encore configurés.\nConsultez Google Cloud Console pour créer vos Client IDs.',
+      );
+      return;
+    }
+    promptGoogleAsync();
+  };
 
   const updateField = (field, value) =>
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -33,7 +81,19 @@ export const LoginScreen = ({ navigation }) => {
   };
 
   const handleLogin = () => {
-    if (validate()) navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+    if (validate()) {
+      const email = formData.emailOrPhone.trim();
+      // Garde le nom déjà enregistré (inscription), sinon dérive un nom de l'email
+      if (!user.email) {
+        const derived = email.includes('@')
+          ? email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          : email;
+        updateUser({ email, fullName: user.fullName || derived });
+      } else {
+        updateUser({ email });
+      }
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+    }
   };
 
   return (
@@ -100,7 +160,7 @@ export const LoginScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.socialButtonsContainer}>
-          <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8} onPress={handleGoogleLogin}>
             <Image source={require('../assets/logoext/image.png')} style={styles.socialIconImage} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8}>

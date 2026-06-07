@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "FinCoachFront",
-    "slug": "FinCoachFront",
+    "name": "FinCoach",
+    "slug": "FinCoach",
+    "scheme": "fincoach",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,6 +16,7 @@
       "supportsTablet": true
     },
     "android": {
+      "permissions": ["android.permission.READ_SMS"],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -26,7 +28,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-web-browser"
     ]
   }
 }

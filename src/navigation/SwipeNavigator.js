@@ -1,19 +1,24 @@
 /**
  * SwipeNavigator — navigation par balayage horizontal
  *
- * Animation 100% native — zéro lag JS :
- *   Animated.event({ useNativeDriver: true }) connecte le scroll PagerView
- *   directement au thread natif. Aucune donnée ne passe par le JS bridge
- *   pendant le glissement.
+ * Utilise react-native-reanimated (déjà installé) au lieu de
+ * React Native Animated : compatible avec la nouvelle architecture
+ * (Fabric / Expo SDK 56 / RN 0.85).
  *
- * Règle hooks : chaque onglet = composant TabItem séparé.
+ * Le useSharedValue est mis à jour depuis le JS thread via onPageScroll,
+ * et les useAnimatedStyle s'exécutent sur le UI thread de Reanimated.
  */
 
 import { useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert,
-  Dimensions, Animated,
+  View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PagerView from 'react-native-pager-view';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,6 +29,8 @@ import { useTheme } from '../context/ThemeContext';
 import { DashboardScreen }    from '../../screens/DashboardScreen';
 import { TransactionsScreen } from '../../screens/TransactionsScreen';
 import { BudgetScreen }       from '../../screens/BudgetScreen';
+import { CoachIAScreen }      from '../../screens/CoachIAScreen';
+import { ProfileScreen }      from '../../screens/ProfileScreen';
 
 // ── Config ────────────────────────────────────
 
@@ -31,13 +38,13 @@ const { width: W } = Dimensions.get('window');
 
 const TABS = [
   { label: 'Accueil',      lib: 'ionicons',  icon: 'home-outline',    iconActive: 'home'    },
-  { label: 'Transactions', lib: 'community', icon: 'receipt-outline', iconActive: 'receipt' },
+  { label: 'Transactions', lib: 'ionicons', icon: 'swap-horizontal-outline', iconActive: 'swap-horizontal' },
   { label: 'Budget',       lib: 'ionicons',  icon: 'wallet-outline',  iconActive: 'wallet'  },
   { label: 'Coach IA',     lib: 'community', icon: 'robot-outline',   iconActive: 'robot'   },
   { label: 'Profil',       lib: 'ionicons',  icon: 'person-outline',  iconActive: 'person'  },
 ];
 
-const SWIPEABLE = 3;
+const SWIPEABLE = 5;
 const TAB_W     = W / TABS.length;
 
 // ── Icônes ────────────────────────────────────
@@ -50,14 +57,31 @@ const Icon = ({ tab, active, color }) => {
 };
 
 // ── Onglet individuel ─────────────────────────
-// scrollX est un Animated.Value natif — toutes les interpolations
-// s'exécutent sur le thread natif (useNativeDriver: true).
+// Les hooks Reanimated DOIVENT être appelés avant tout return conditionnel.
 
-const TabItem = ({ tab, idx, scrollX, activePage, onPress }) => {
+const TabItem = ({ tab, idx, isActive, scrollX, onPress }) => {
   const { colors } = useTheme();
   const isSwipeable = idx < SWIPEABLE;
 
-  // Onglets non balayables : affichage statique
+  // Tous les hooks déclarés ici — avant le return conditionnel
+  const wrapStyle = useAnimatedStyle(() => ({
+    opacity:   interpolate(scrollX.value, [idx - 1, idx, idx + 1], [0.45, 1, 0.45], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(scrollX.value, [idx - 1, idx, idx + 1], [0.88, 1.06, 0.88], Extrapolation.CLAMP) }],
+  }));
+
+  const activeIconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollX.value, [idx - 0.4, idx, idx + 0.4], [0, 1, 0], Extrapolation.CLAMP),
+  }));
+
+  const inactiveIconStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollX.value, [idx - 0.4, idx, idx + 0.4], [1, 0, 1], Extrapolation.CLAMP),
+  }));
+
+  const labelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollX.value, [idx - 1, idx, idx + 1], [0.45, 1, 0.45], Extrapolation.CLAMP),
+  }));
+
+  // Onglets non balayables : statique
   if (!isSwipeable) {
     return (
       <TouchableOpacity
@@ -79,59 +103,31 @@ const TabItem = ({ tab, idx, scrollX, activePage, onPress }) => {
     );
   }
 
-  // ── Interpolations natives (zéro JS pendant le geste) ──
-
-  // Opacité : 1 au centre, 0.45 à ±1
-  const opacity = scrollX.interpolate({
-    inputRange:  [idx - 1, idx, idx + 1],
-    outputRange: [0.45, 1, 0.45],
-    extrapolate: 'clamp',
-  });
-
-  // Scale : légèrement agrandi quand actif
-  const scale = scrollX.interpolate({
-    inputRange:  [idx - 1, idx, idx + 1],
-    outputRange: [0.88, 1.06, 0.88],
-    extrapolate: 'clamp',
-  });
-
-  // Crossfade icône active ↔ inactive
-  const activeIconOpacity = scrollX.interpolate({
-    inputRange:  [idx - 0.4, idx, idx + 0.4],
-    outputRange: [0, 1, 0],
-    extrapolate: 'clamp',
-  });
-  const inactiveIconOpacity = scrollX.interpolate({
-    inputRange:  [idx - 0.4, idx, idx + 0.4],
-    outputRange: [1, 0, 1],
-    extrapolate: 'clamp',
-  });
-
-  // Couleur du label interpolée (natif)
-  const labelColor = scrollX.interpolate({
-    inputRange:  [idx - 1, idx, idx + 1],
-    outputRange: [colors.textSecondary, colors.primary, colors.textSecondary],
-    extrapolate: 'clamp',
-  });
-
   return (
     <TouchableOpacity
       style={styles.tabItem}
       activeOpacity={0.75}
       onPress={() => onPress(idx)}
     >
-      <Animated.View style={[styles.iconWrap, { opacity, transform: [{ scale }] }]}>
+      <Animated.View style={[styles.iconWrap, wrapStyle]}>
         {/* Icône inactive */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, { opacity: inactiveIconOpacity }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, inactiveIconStyle]}>
           <Icon tab={tab} active={false} color={colors.textSecondary} />
         </Animated.View>
         {/* Icône active */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, { opacity: activeIconOpacity }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, activeIconStyle]}>
           <Icon tab={tab} active={true} color={colors.primary} />
         </Animated.View>
       </Animated.View>
 
-      <Animated.Text style={[styles.tabLabel, { color: labelColor, opacity }]}>
+      {/* color est statique (non-animé) → pas d'erreur native driver */}
+      <Animated.Text
+        style={[
+          styles.tabLabel,
+          { color: isActive ? colors.primary : colors.textSecondary },
+          labelStyle,
+        ]}
+      >
         {tab.label}
       </Animated.Text>
     </TouchableOpacity>
@@ -143,12 +139,16 @@ const TabItem = ({ tab, idx, scrollX, activePage, onPress }) => {
 const AnimatedNavBar = ({ scrollX, activePage, onTabPress, colors }) => {
   const insets = useSafeAreaInsets();
 
-  // Indicateur glissant : suit le scroll nativement
-  const indicatorX = scrollX.interpolate({
-    inputRange:  [0, 1, 2],
-    outputRange: [0, TAB_W, TAB_W * 2],
-    extrapolate: 'clamp',
-  });
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{
+      translateX: interpolate(
+        scrollX.value,
+        [0, 1, 2, 3, 4],
+        [0, TAB_W, TAB_W * 2, TAB_W * 3, TAB_W * 4],
+        Extrapolation.CLAMP,
+      ),
+    }],
+  }));
 
   return (
     <View style={[
@@ -156,24 +156,18 @@ const AnimatedNavBar = ({ scrollX, activePage, onTabPress, colors }) => {
       { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom },
     ]}>
       {/* Ligne colorée en haut */}
-      <Animated.View style={[
-        styles.activeLine,
-        { backgroundColor: colors.primary, transform: [{ translateX: indicatorX }] },
-      ]} />
+      <Animated.View style={[styles.activeLine, { backgroundColor: colors.primary }, indicatorStyle]} />
 
       {/* Capsule de fond */}
-      <Animated.View style={[
-        styles.pill,
-        { backgroundColor: `${colors.primary}14`, transform: [{ translateX: indicatorX }] },
-      ]} />
+      <Animated.View style={[styles.pill, { backgroundColor: `${colors.primary}14` }, indicatorStyle]} />
 
       {TABS.map((tab, idx) => (
         <TabItem
           key={tab.label}
           tab={tab}
           idx={idx}
+          isActive={activePage === idx}
           scrollX={scrollX}
-          activePage={activePage}
           onPress={onTabPress}
         />
       ))}
@@ -185,15 +179,16 @@ const AnimatedNavBar = ({ scrollX, activePage, onTabPress, colors }) => {
 
 export const SwipeNavigator = ({ navigation }) => {
   const { colors } = useTheme();
-  const pagerRef   = useRef(null);
+  const pagerRef  = useRef(null);
 
-  // Deux valeurs natives séparées → combinées en scrollX
-  // Animated.event les met à jour directement sur le thread natif
-  const position = useRef(new Animated.Value(0)).current;
-  const offset   = useRef(new Animated.Value(0)).current;
-  const scrollX  = Animated.add(position, offset);
-
+  // useSharedValue : partagé entre JS thread et UI thread Reanimated
+  const scrollX   = useSharedValue(0);
   const [activePage, setActivePage] = useState(0);
+
+  const handlePageScroll = (e) => {
+    // Mise à jour sur JS thread → Reanimated propage sur UI thread
+    scrollX.value = e.nativeEvent.position + e.nativeEvent.offset;
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -202,17 +197,14 @@ export const SwipeNavigator = ({ navigation }) => {
         style={styles.pager}
         initialPage={0}
         overdrag
-        onPageScroll={Animated.event(
-          [{ nativeEvent: { position, offset } }],
-          { useNativeDriver: true },
-        )}
-        onPageSelected={(e) => {
-          setActivePage(e.nativeEvent.position);
-        }}
+        onPageScroll={handlePageScroll}
+        onPageSelected={(e) => setActivePage(e.nativeEvent.position)}
       >
         <View key="0" style={styles.page}><DashboardScreen    navigation={navigation} /></View>
         <View key="1" style={styles.page}><TransactionsScreen navigation={navigation} /></View>
         <View key="2" style={styles.page}><BudgetScreen       navigation={navigation} /></View>
+        <View key="3" style={styles.page}><CoachIAScreen      navigation={navigation} /></View>
+        <View key="4" style={styles.page}><ProfileScreen      navigation={navigation} /></View>
       </PagerView>
 
       <AnimatedNavBar

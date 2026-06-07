@@ -1,48 +1,98 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity  ,
+  TouchableOpacity,
   StatusBar,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { useUser } from '../src/context/UserContext';
 import { Button, Input, GlassCard } from '../src/components';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// ─── Mêmes IDs que LoginScreen — remplacez avec vos Client IDs Google ────────
+const GOOGLE_CLIENT_IDS = {
+  webClientId:     'VOTRE_WEB_CLIENT_ID.apps.googleusercontent.com',
+  androidClientId: 'VOTRE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+};
 
 export const SignupScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
-  const styles = getStyles(colors);
+  const { updateUser }     = useUser();
+  const styles             = getStyles(colors);
 
   const [formData, setFormData] = useState({
-    lastName: '', firstName: '', email: '',
-    phone: '', password: '', acceptTerms: false,
+    fullName: '', email: '', phone: '', password: '', confirmPassword: '', acceptTerms: false,
   });
   const [errors, setErrors] = useState({});
+
+  const [, response, promptGoogleAsync] = Google.useAuthRequest({
+    clientId:        GOOGLE_CLIENT_IDS.webClientId,
+    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const token = response.authentication?.accessToken;
+      if (!token) return;
+      fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((info) => {
+          updateUser({ fullName: info.name || '', email: info.email || '' });
+          navigation.navigate('ProfileSetup');
+        })
+        .catch(() => Alert.alert('Erreur', 'Impossible de récupérer les informations Google.'));
+    } else if (response?.type === 'error') {
+      Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
+    }
+  }, [response]);
+
+  const handleGoogleSignup = () => {
+    if (GOOGLE_CLIENT_IDS.webClientId.startsWith('VOTRE_')) {
+      Alert.alert(
+        'Configuration requise',
+        'Les identifiants Google OAuth ne sont pas encore configurés.\nConsultez Google Cloud Console pour créer vos Client IDs.',
+      );
+      return;
+    }
+    promptGoogleAsync();
+  };
 
   const updateField = (field, value) =>
     setFormData(prev => ({ ...prev, [field]: value }));
 
   const validate = () => {
     const e = {};
-    if (!formData.lastName.trim())   e.lastName  = 'Le nom est requis';
-    if (!formData.firstName.trim())  e.firstName = 'Le prénom est requis';
-    if (!formData.email.trim())      e.email     = "L'adresse email est requise";
+    if (!formData.fullName.trim())  e.fullName = 'Le nom complet est requis';
+    if (!formData.email.trim())     e.email    = "L'adresse email est requise";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) e.email = "L'adresse email n'est pas valide";
-    if (!formData.phone.trim())      e.phone     = 'Le numéro de téléphone est requis';
-    if (!formData.password)          e.password  = 'Le mot de passe est requis';
+    if (!formData.phone.trim())     e.phone    = 'Le numéro de téléphone est requis';
+    if (!formData.password)         e.password = 'Le mot de passe est requis';
     else if (formData.password.length < 6) e.password = 'Au moins 6 caractères';
-    if (!formData.acceptTerms)       e.acceptTerms = 'Vous devez accepter les conditions';
+    if (!formData.confirmPassword)  e.confirmPassword = 'Veuillez confirmer le mot de passe';
+    else if (formData.confirmPassword !== formData.password) e.confirmPassword = 'Les mots de passe ne correspondent pas';
+    if (!formData.acceptTerms)      e.acceptTerms = 'Vous devez accepter les conditions';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSignup = () => {
-    if (validate()) navigation.navigate('ProfileSetup');
+    if (validate()) {
+      updateUser({ fullName: formData.fullName.trim(), email: formData.email.trim() });
+      navigation.navigate('ProfileSetup');
+    }
   };
 
   return (
@@ -72,17 +122,10 @@ export const SignupScreen = ({ navigation }) => {
 
         <GlassCard style={styles.formCard}>
           <Input
-            label="Nom" placeholder="Ex: Dupont"
-            value={formData.lastName}
-            onChangeText={(v) => { updateField('lastName', v); if (errors.lastName) setErrors(p => ({ ...p, lastName: null })); }}
-            error={errors.lastName}
-            icon={<Ionicons name="person-outline" size={20} color={colors.textSecondary} />}
-          />
-          <Input
-            label="Prénom" placeholder="Ex: Jean"
-            value={formData.firstName}
-            onChangeText={(v) => { updateField('firstName', v); if (errors.firstName) setErrors(p => ({ ...p, firstName: null })); }}
-            error={errors.firstName}
+            label="Nom complet" placeholder="Ex: Jean Dupont"
+            value={formData.fullName}
+            onChangeText={(v) => { updateField('fullName', v); if (errors.fullName) setErrors(p => ({ ...p, fullName: null })); }}
+            error={errors.fullName}
             icon={<Ionicons name="person-outline" size={20} color={colors.textSecondary} />}
           />
           <Input
@@ -107,6 +150,14 @@ export const SignupScreen = ({ navigation }) => {
             onChangeText={(v) => { updateField('password', v); if (errors.password) setErrors(p => ({ ...p, password: null })); }}
             secureTextEntry
             error={errors.password}
+            icon={<Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />}
+          />
+          <Input
+            label="Confirmer le mot de passe" placeholder="••••••••••••"
+            value={formData.confirmPassword}
+            onChangeText={(v) => { updateField('confirmPassword', v); if (errors.confirmPassword) setErrors(p => ({ ...p, confirmPassword: null })); }}
+            secureTextEntry
+            error={errors.confirmPassword}
             icon={<Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />}
           />
 
@@ -137,7 +188,7 @@ export const SignupScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.8} onPress={handleGoogleSignup}>
               <Image source={require('../assets/logoext/image.png')} style={styles.googleIcon} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>

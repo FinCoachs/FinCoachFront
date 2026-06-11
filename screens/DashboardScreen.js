@@ -8,17 +8,13 @@ import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
 import { useTransactions } from '../src/context/TransactionsContext';
 import { useCategories } from '../src/context/CategoriesContext';
+import { useAccounts } from '../src/context/AccountContext';
 import { AppHeader } from '../src/components';
 
 const { width } = Dimensions.get('window');
 const CHART_W = width - SPACING.marginX * 2 - 32;
 const CHART_H = 90;
 
-// ── Comptes initiaux (mock en attendant l'API) ────────────
-const INITIAL_ACCOUNTS = [
-  { id: 'boa',  name: 'BOA Bénin', type: 'Banque',        balance: 320000, bg: '#003366', textColor: '#FFFFFF', abbr: 'BOA'  },
-  { id: 'momo', name: 'MTN MoMo',  type: 'Mobile Money',  balance: 167350, bg: '#FFC300', textColor: '#000000', abbr: 'MoMo' },
-];
 
 // ── Types de comptes disponibles ──────────────────────────
 const ACCOUNT_TYPES = [
@@ -136,7 +132,7 @@ const AccountCard = ({ account }) => {
       </View>
       <View style={s.accountInfo}>
         <Text style={s.accountName}>{account.name}</Text>
-        <Text style={s.accountType}>{account.type}</Text>
+        <Text style={s.accountType}>{account.typeLabel}</Text>
       </View>
       <View style={s.accountBalanceWrap}>
         <Text style={s.accountBalance}>{formatAmount(account.balance)}</Text>
@@ -209,22 +205,20 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
   const [name,         setName]         = useState('');
   const [balance,      setBalance]      = useState('');
 
-  const handleSave = () => {
-    const numBalance = parseFloat(balance.replace(/\s/g, '').replace(',', '.')) || 0;
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Nom requis', 'Veuillez saisir un nom pour ce compte.'); return; }
-    const typeInfo = ACCOUNT_TYPES.find(t => t.id === selectedType);
-    const initials = name.trim().split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-    onAdd({
-      id:        Date.now().toString(),
-      name:      name.trim(),
-      type:      typeInfo.label,
-      balance:   numBalance,
-      bg:        typeInfo.bg,
-      textColor: typeInfo.textColor,
-      abbr:      initials,
-    });
-    setName(''); setBalance(''); setSelectedType(ACCOUNT_TYPES[0].id);
-    onClose();
+    setSaving(true);
+    try {
+      await onAdd({ name: name.trim() });
+      setName(''); setBalance(''); setSelectedType(ACCOUNT_TYPES[0].id);
+      onClose();
+    } catch (_) {
+      Alert.alert('Erreur', 'Impossible de créer le compte. Vérifiez votre connexion.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -302,12 +296,15 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
 
           {/* Bouton */}
           <TouchableOpacity
-            style={[s.modalSaveBtn, { backgroundColor: colors.primary, ...getShadow(isDark).glow(colors.primary) }]}
+            style={[s.modalSaveBtn, { backgroundColor: saving ? colors.border : colors.primary, ...(!saving && getShadow(isDark).glow(colors.primary)) }]}
             onPress={handleSave}
             activeOpacity={0.85}
+            disabled={saving}
           >
-            <Ionicons name="checkmark-circle" size={20} color={colors.onPrimary} />
-            <Text style={[s.modalSaveBtnText, { color: colors.onPrimary }]}>Ajouter ce compte</Text>
+            <Ionicons name={saving ? 'hourglass-outline' : 'checkmark-circle'} size={20} color={colors.onPrimary} />
+            <Text style={[s.modalSaveBtnText, { color: colors.onPrimary }]}>
+              {saving ? 'Création...' : 'Ajouter ce compte'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -321,21 +318,18 @@ export const DashboardScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const s = getStyles(colors);
 
-  const { transactions, operatorBalances } = useTransactions();
-  const { categories }                     = useCategories();
+  const { transactions, operatorBalances, reload: reloadTx }         = useTransactions();
+  const { categories,                     reload: reloadCats }        = useCategories();
+  const { accounts, addAccount, totalBalance, reload: reloadAccounts } = useAccounts();
 
-  const [accounts,     setAccounts]     = useState(INITIAL_ACCOUNTS);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Sync soldes Mobile Money depuis les SMS importés
+  // Recharge toutes les données dès l'affichage de l'écran (l'utilisateur est authentifié)
   useEffect(() => {
-    setAccounts((prev) => prev.map((a) => {
-      if (a.id === 'momo'    && operatorBalances.mtn     != null) return { ...a, balance: operatorBalances.mtn     };
-      if (a.id === 'moov'    && operatorBalances.moov    != null) return { ...a, balance: operatorBalances.moov    };
-      if (a.id === 'celtiis' && operatorBalances.celtiis != null) return { ...a, balance: operatorBalances.celtiis };
-      return a;
-    }));
-  }, [operatorBalances]);
+    reloadAccounts();
+    reloadTx();
+    reloadCats();
+  }, []);
 
   // 4 transactions les plus récentes
   const recentTxs = transactions.slice(0, 4);
@@ -367,7 +361,6 @@ export const DashboardScreen = ({ navigation }) => {
     [transactions, categories],
   );
 
-  const totalBalance = useMemo(() => accounts.reduce((s, a) => s + a.balance, 0), [accounts]);
 
   // Map catégorie → couleur pour les transactions
   const catColorMap = useMemo(() => {
@@ -385,7 +378,7 @@ export const DashboardScreen = ({ navigation }) => {
       <AddAccountModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onAdd={(newAccount) => setAccounts(prev => [...prev, newAccount])}
+        onAdd={({ name }) => addAccount({ libelle: name })}
       />
 
       <ScrollView

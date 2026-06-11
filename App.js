@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation';
 import { CategoriesProvider, useCategories } from './src/context/CategoriesContext';
 import { TransactionsProvider, useTransactions } from './src/context/TransactionsContext';
+import { AccountProvider } from './src/context/AccountContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { UserProvider } from './src/context/UserContext';
 
@@ -69,11 +70,13 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <UserProvider>
-          <TransactionsProvider>
-            <CategoriesProvider>
-              <AppContent />
-            </CategoriesProvider>
-          </TransactionsProvider>
+          <AccountProvider>
+            <TransactionsProvider>
+              <CategoriesProvider>
+                <AppContent />
+              </CategoriesProvider>
+            </TransactionsProvider>
+          </AccountProvider>
         </UserProvider>
       </ThemeProvider>
     </SafeAreaProvider>

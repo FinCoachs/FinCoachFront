@@ -35,7 +35,7 @@ export const LoginScreen = ({ navigation }) => {
   const { updateUser, user } = useUser();
   const styles = getStyles(colors);
 
-  const [formData, setFormData] = useState({ emailOrPhone: '', password: '' });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors]     = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -78,8 +78,9 @@ export const LoginScreen = ({ navigation }) => {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.emailOrPhone.trim()) newErrors.emailOrPhone = "L'email ou le numéro de téléphone est requis";
-    if (!formData.password)            newErrors.password      = 'Le mot de passe est requis';
+    if (!formData.email.trim()) newErrors.email = "L'adresse email est requise";
+    else if (!/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "L'adresse email n'est pas valide";
+    if (!formData.password) newErrors.password = 'Le mot de passe est requis';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -88,7 +89,7 @@ export const LoginScreen = ({ navigation }) => {
     if (validate()) {
       setIsLoading(true);
       try {
-        const email = formData.emailOrPhone.trim();
+        const email = formData.email.trim();
         const response = await api.post('/login', {
           email: email,
           password: formData.password,
@@ -151,11 +152,11 @@ export const LoginScreen = ({ navigation }) => {
 
         <View style={styles.formContainer}>
           <Input
-            placeholder="Email ou Téléphone"
-            value={formData.emailOrPhone}
-            onChangeText={(v) => { updateField('emailOrPhone', v); if (errors.emailOrPhone) setErrors(p => ({ ...p, emailOrPhone: null })); }}
+            placeholder="Email"
+            value={formData.email}
+            onChangeText={(v) => { updateField('email', v); if (errors.email) setErrors(p => ({ ...p, email: null })); }}
             keyboardType="email-address"
-            error={errors.emailOrPhone}
+            error={errors.email}
             icon={<Ionicons name="mail-outline" size={20} color={colors.textSecondary} />}
             style={styles.inputField}
           />

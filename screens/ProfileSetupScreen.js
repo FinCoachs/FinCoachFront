@@ -138,25 +138,33 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
 
   const signupData = route.params?.signupData || {};
 
-  const [status,    setStatus]    = useState('salarie');
-  const [income,    setIncome]    = useState('');
-  const [accounts,  setAccounts]  = useState([]);
-  const [goal,      setGoal]      = useState('budget');
-  const [household, setHousehold] = useState('single');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [status,       setStatus]       = useState('salarie');
+  const [customStatus, setCustomStatus] = useState('');
+  const [income,       setIncome]       = useState('');
+  const [accounts,     setAccounts]     = useState([]);
+  const [goal,         setGoal]         = useState('budget');
+  const [household,    setHousehold]    = useState('single');
+  const [isLoading,    setIsLoading]    = useState(false);
+
+  const handleStatusChange = (id) => {
+    setStatus(id);
+    if (id !== 'autre') setCustomStatus('');
+  };
 
   const toggleAccount = (id) =>
     setAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
 
-  const isComplete = status && income && accounts.length > 0 && goal && household && accountNumber.trim() !== '';
+  const isComplete =
+    status && income && accounts.length > 0 && goal && household &&
+    (status !== 'autre' || customStatus.trim() !== '');
 
   const handleFinish = async () => {
     if (!isComplete) return;
 
     setIsLoading(true);
     try {
-      const profilData = JSON.stringify({ status, income, accounts, goal, household });
+      const effectiveStatus = status === 'autre' ? customStatus.trim() : status;
+      const profilData = JSON.stringify({ status: effectiveStatus, income, accounts, goal, household });
       
       // Envoi de la requête d'inscription avec les infos de profil
       const response = await api.post('/register', {
@@ -164,8 +172,7 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
         email: signupData.email?.trim() || '',
         password: signupData.password || '',
         password_confirmation: signupData.confirmPassword || '',
-        phone: accountNumber,
-        profil: profilData
+        profil: profilData,
       });
 
       if (response.data.token) {
@@ -209,15 +216,15 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
 
       {/* Barre de progression */}
       <View style={styles.progressBar}>
-        {[0, 1, 2, 3, 4, 5].map(i => (
+        {[0, 1, 2, 3, 4].map(i => (
           <View
             key={i}
             style={[
               styles.progressDot,
               {
-                backgroundColor: i < [accountNumber, status, income, accounts.length, goal, household].filter(Boolean).length
+                backgroundColor: i < [status, income, accounts.length, goal, household].filter(Boolean).length
                   ? colors.primary : colors.border,
-                width: i < [accountNumber, status, income, accounts.length, goal, household].filter(Boolean).length ? 24 : 8,
+                width: i < [status, income, accounts.length, goal, household].filter(Boolean).length ? 24 : 8,
               },
             ]}
           />
@@ -231,40 +238,34 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Section 1 : Numéro de Compte ── */}
+          {/* ── Section 1 : Statut ── */}
           <View style={styles.section}>
             <SectionHeader
               step="1"
-              title="Numéro de compte"
-              subtitle="Le numéro de téléphone associé à vos opérations."
-            />
-            <Input
-              label="Numéro de compte" placeholder="+229 -- -- -- --"
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-              keyboardType="phone-pad"
-              icon={<Ionicons name="call-outline" size={20} color={colors.textSecondary} />}
-            />
-          </View>
-
-          {/* ── Section 2 : Statut ── */}
-          <View style={styles.section}>
-            <SectionHeader
-              step="2"
               title="Votre situation"
               subtitle="Cela nous aide à adapter vos catégories de dépenses."
             />
             <View style={styles.chipList}>
               {STATUTES.map(s => (
-                <Chip key={s.id} label={s.label} icon={s.icon} active={status === s.id} onPress={() => setStatus(s.id)} />
+                <Chip key={s.id} label={s.label} icon={s.icon} active={status === s.id} onPress={() => handleStatusChange(s.id)} />
               ))}
             </View>
+            {status === 'autre' && (
+              <Input
+                label="Précisez votre situation"
+                placeholder="Ex : Commerçant, Artisan, Retraité…"
+                value={customStatus}
+                onChangeText={setCustomStatus}
+                icon={<Ionicons name="create-outline" size={20} color={colors.textSecondary} />}
+                autoFocus
+              />
+            )}
           </View>
 
-          {/* ── Section 3 : Revenus ── */}
+          {/* ── Section 2 : Revenus ── */}
           <View style={styles.section}>
             <SectionHeader
-              step="3"
+              step="2"
               title="Tranche de revenu mensuel"
               subtitle="Confidentiel — utilisé uniquement pour calibrer vos budgets et recommandations IA."
             />
@@ -291,10 +292,10 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* ── Section 4 : Comptes ── */}
+          {/* ── Section 3 : Comptes ── */}
           <View style={styles.section}>
             <SectionHeader
-              step="4"
+              step="3"
               title="Vos comptes à suivre"
               subtitle="Sélectionnez les sources que vous utilisez. Plusieurs choix possibles."
             />
@@ -310,10 +311,10 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* ── Section 5 : Objectif ── */}
+          {/* ── Section 4 : Objectif ── */}
           <View style={styles.section}>
             <SectionHeader
-              step="5"
+              step="4"
               title="Objectif principal"
               subtitle="Votre coach IA adaptera ses conseils à cet objectif."
             />
@@ -324,10 +325,10 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {/* ── Section 6 : Foyer ── */}
+          {/* ── Section 5 : Foyer ── */}
           <View style={styles.section}>
             <SectionHeader
-              step="6"
+              step="5"
               title="Situation du foyer"
               subtitle="Aide l'IA à estimer vos charges incompressibles."
             />

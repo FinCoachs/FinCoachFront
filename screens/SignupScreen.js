@@ -81,7 +81,7 @@ export const SignupScreen = ({ navigation }) => {
     if (!formData.email.trim())     e.email    = "L'adresse email est requise";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) e.email = "L'adresse email n'est pas valide";
     if (!formData.password)         e.password = 'Le mot de passe est requis';
-    else if (formData.password.length < 6) e.password = 'Au moins 6 caractères';
+    else if (formData.password.length < 8) e.password = 'Au moins 8 caractères';
     if (!formData.confirmPassword)  e.confirmPassword = 'Veuillez confirmer le mot de passe';
     else if (formData.confirmPassword !== formData.password) e.confirmPassword = 'Les mots de passe ne correspondent pas';
     if (!formData.acceptTerms)      e.acceptTerms = 'Vous devez accepter les conditions';

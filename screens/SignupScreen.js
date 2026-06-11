@@ -34,7 +34,7 @@ export const SignupScreen = ({ navigation }) => {
   const styles             = getStyles(colors);
 
   const [formData, setFormData] = useState({
-    fullName: '', email: '', phone: '', password: '', confirmPassword: '', acceptTerms: false,
+    fullName: '', email: '', password: '', confirmPassword: '', acceptTerms: false,
   });
   const [errors, setErrors] = useState({});
 
@@ -80,7 +80,6 @@ export const SignupScreen = ({ navigation }) => {
     if (!formData.fullName.trim())  e.fullName = 'Le nom complet est requis';
     if (!formData.email.trim())     e.email    = "L'adresse email est requise";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) e.email = "L'adresse email n'est pas valide";
-    if (!formData.phone.trim())     e.phone    = 'Le numéro de téléphone est requis';
     if (!formData.password)         e.password = 'Le mot de passe est requis';
     else if (formData.password.length < 6) e.password = 'Au moins 6 caractères';
     if (!formData.confirmPassword)  e.confirmPassword = 'Veuillez confirmer le mot de passe';
@@ -136,14 +135,6 @@ export const SignupScreen = ({ navigation }) => {
             keyboardType="email-address"
             error={errors.email}
             icon={<Ionicons name="mail-outline" size={20} color={colors.textSecondary} />}
-          />
-          <Input
-            label="Numéro de téléphone" placeholder="+229 -- -- -- --"
-            value={formData.phone}
-            onChangeText={(v) => { updateField('phone', v); if (errors.phone) setErrors(p => ({ ...p, phone: null })); }}
-            keyboardType="phone-pad"
-            error={errors.phone}
-            icon={<Ionicons name="call-outline" size={20} color={colors.textSecondary} />}
           />
           <Input
             label="Mot de passe" placeholder="••••••••••••"

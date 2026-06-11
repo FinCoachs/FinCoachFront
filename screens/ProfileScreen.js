@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../src/services/api';
 
 // ── Données mock ──────────────────────────────────────────
 
@@ -200,7 +202,13 @@ export const ProfileScreen = ({ navigation }) => {
             { text: 'Annuler', style: 'cancel' },
             {
               text: 'Déconnexion', style: 'destructive',
-              onPress: () => {
+              onPress: async () => {
+                try {
+                  await api.post('/logout');
+                } catch (e) {
+                  // Ignore network errors on logout
+                }
+                await AsyncStorage.removeItem('userToken');
                 updateUser({ fullName: '', email: '' });
                 navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
               },

@@ -17,6 +17,8 @@ import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
 import { Button, Input, GlassCard } from '../src/components';
+import api from '../src/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -90,8 +92,7 @@ export const SignupScreen = ({ navigation }) => {
 
   const handleSignup = () => {
     if (validate()) {
-      updateUser({ fullName: formData.fullName.trim(), email: formData.email.trim() });
-      navigation.navigate('ProfileSetup');
+      navigation.navigate('ProfileSetup', { signupData: formData });
     }
   };
 
@@ -176,7 +177,7 @@ export const SignupScreen = ({ navigation }) => {
           {errors.acceptTerms && <Text style={styles.checkboxErrorText}>{errors.acceptTerms}</Text>}
 
           <Button
-            title="Créer mon compte" onPress={handleSignup} variant="primary"
+            title="Continuer" onPress={handleSignup} variant="primary"
             icon={<Ionicons name="arrow-forward" size={20} color={colors.onPrimary} />}
             iconPosition="right"
           />

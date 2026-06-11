@@ -17,14 +17,17 @@ import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
 import { Button, Input } from '../src/components';
+import api from '../src/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityIndicator } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
 // ─── Remplacez par vos IDs depuis Google Cloud Console ──────────────────────
 // https://console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0
 const GOOGLE_CLIENT_IDS = {
-  webClientId:     'VOTRE_WEB_CLIENT_ID.apps.googleusercontent.com',
-  androidClientId: 'VOTRE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  webClientId:     '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com',
+  androidClientId: '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com',
 };
 
 export const LoginScreen = ({ navigation }) => {
@@ -34,6 +37,7 @@ export const LoginScreen = ({ navigation }) => {
 
   const [formData, setFormData] = useState({ emailOrPhone: '', password: '' });
   const [errors, setErrors]     = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
     clientId:        GOOGLE_CLIENT_IDS.webClientId,
@@ -80,19 +84,38 @@ export const LoginScreen = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (validate()) {
-      const email = formData.emailOrPhone.trim();
-      // Garde le nom déjà enregistré (inscription), sinon dérive un nom de l'email
-      if (!user.email) {
-        const derived = email.includes('@')
-          ? email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-          : email;
-        updateUser({ email, fullName: user.fullName || derived });
-      } else {
-        updateUser({ email });
+      setIsLoading(true);
+      try {
+        const email = formData.emailOrPhone.trim();
+        const response = await api.post('/login', {
+          email: email,
+          password: formData.password,
+        });
+
+        if (response.data.token) {
+          await AsyncStorage.setItem('userToken', response.data.token);
+        }
+
+        if (response.data.user) {
+          updateUser({ 
+            email: response.data.user.email, 
+            fullName: response.data.user.name || '' 
+          });
+        } else {
+          updateUser({ email, fullName: user.fullName || email.split('@')[0] });
+        }
+        
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      } catch (error) {
+        Alert.alert(
+          'Erreur de connexion', 
+          error.response?.data?.message || 'Identifiants incorrects ou problème serveur.'
+        );
+      } finally {
+        setIsLoading(false);
       }
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     }
   };
 
@@ -150,7 +173,11 @@ export const LoginScreen = ({ navigation }) => {
             <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
           </TouchableOpacity>
 
-          <Button title="Se connecter" onPress={handleLogin} variant="primary" />
+          {isLoading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: SPACING.base }} />
+          ) : (
+            <Button title="Se connecter" onPress={handleLogin} variant="primary" />
+          )}
         </View>
 
         <View style={styles.divider}>

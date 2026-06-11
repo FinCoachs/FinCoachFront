@@ -9,10 +9,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { Button } from '../src/components';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../src/services/api';
+import { useUser } from '../src/context/UserContext';
+import { useEffect } from 'react';
 
 export const WelcomeScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
+  const { updateUser } = useUser();
+
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          // Verify token by making a quick request, e.g. to /user if it exists
+          const response = await api.get('/user');
+          if (response.data) {
+            updateUser({
+              email: response.data.email,
+              fullName: response.data.name || ''
+            });
+            navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+          }
+        }
+      } catch (error) {
+        // Token invalid or network error, let user login manually
+        await AsyncStorage.removeItem('userToken');
+      }
+    };
+
+    checkToken();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>

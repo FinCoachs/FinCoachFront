@@ -7,6 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { useUser } from '../src/context/UserContext';
+import api from '../src/services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityIndicator, Alert } from 'react-native';
 
 // ── Données du formulaire ─────────────────────
 
@@ -126,25 +130,59 @@ const chipStyles = StyleSheet.create({
 
 // ── Écran principal ───────────────────────────
 
-export const ProfileSetupScreen = ({ navigation }) => {
+export const ProfileSetupScreen = ({ navigation, route }) => {
   const { colors, isDark } = useTheme();
+  const { updateUser } = useUser();
   const styles = getStyles(colors);
+
+  const signupData = route.params?.signupData || {};
 
   const [status,    setStatus]    = useState('salarie');
   const [income,    setIncome]    = useState('');
   const [accounts,  setAccounts]  = useState([]);
   const [goal,      setGoal]      = useState('budget');
   const [household, setHousehold] = useState('single');
+  const [isLoading, setIsLoading] = useState(false);
 
   const toggleAccount = (id) =>
     setAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
 
   const isComplete = status && income && accounts.length > 0 && goal && household;
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (!isComplete) return;
-    console.log('Profile configured:', { status, income, accounts, goal, household });
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+
+    setIsLoading(true);
+    try {
+      const profilData = JSON.stringify({ status, income, accounts, goal, household });
+      
+      // Envoi de la requête d'inscription avec les infos de profil
+      const response = await api.post('/register', {
+        name: signupData.fullName?.trim() || 'Utilisateur',
+        email: signupData.email?.trim() || '',
+        password: signupData.password || '',
+        password_confirmation: signupData.confirmPassword || '',
+        profil: profilData
+      });
+
+      if (response.data.token) {
+        await AsyncStorage.setItem('userToken', response.data.token);
+      }
+
+      updateUser({ 
+        fullName: signupData.fullName?.trim() || '', 
+        email: signupData.email?.trim() || '' 
+      });
+      
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+    } catch (error) {
+      Alert.alert(
+        "Erreur d'inscription", 
+        error.response?.data?.message || "Une erreur est survenue lors de la création du compte."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -306,20 +344,24 @@ export const ProfileSetupScreen = ({ navigation }) => {
             {accounts.length === 0 ? 'Sélectionnez au moins un compte' : 'Complétez toutes les étapes'}
           </Text>
         )}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            { backgroundColor: isComplete ? colors.primary : colors.surfaceContainerHigh },
-          ]}
-          onPress={handleFinish}
-          activeOpacity={0.85}
-          disabled={!isComplete}
-        >
-          <Text style={[styles.submitText, { color: isComplete ? colors.onPrimary : colors.textSecondary }]}>
-            Commencer avec FinCoach
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color={isComplete ? colors.onPrimary : colors.textSecondary} />
-        </TouchableOpacity>
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 8 }} />
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              { backgroundColor: isComplete ? colors.primary : colors.surfaceContainerHigh },
+            ]}
+            onPress={handleFinish}
+            activeOpacity={0.85}
+            disabled={!isComplete}
+          >
+            <Text style={[styles.submitText, { color: isComplete ? colors.onPrimary : colors.textSecondary }]}>
+              Commencer avec FinCoach
+            </Text>
+            <Ionicons name="arrow-forward" size={20} color={isComplete ? colors.onPrimary : colors.textSecondary} />
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );

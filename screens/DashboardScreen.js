@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { Animated, View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
@@ -15,13 +15,6 @@ const { width } = Dimensions.get('window');
 const CHART_W = width - SPACING.marginX * 2 - 32;
 const CHART_H = 90;
 
-
-// ── Types de comptes disponibles ──────────────────────────
-const ACCOUNT_TYPES = [
-  { id: 'banque',  label: 'Banque',       icon: 'business-outline',      bg: '#1A3A6E', textColor: '#FFFFFF' },
-  { id: 'momo',   label: 'Mobile Money', icon: 'phone-portrait-outline', bg: '#FFC300', textColor: '#000000' },
-  { id: 'cash',   label: 'Espèces',      icon: 'cash-outline',           bg: '#2E7D32', textColor: '#FFFFFF' },
-];
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -39,6 +32,94 @@ const formatDate = (date) => {
 
 const getPctColor = (pct) =>
   pct >= 90 ? '#FF5C5C' : pct >= 70 ? '#F5B731' : '#3DE8A0';
+
+// ── Graphique dynamique ───────────────────────────────────
+
+const buildChartPath = (transactions, w, h) => {
+  const DAYS = 7;
+  const today = new Date();
+
+  const dailyNets = Array.from({ length: DAYS }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (DAYS - 1 - i));
+    const dStr = d.toDateString();
+    return transactions
+      .filter(t => new Date(t.date).toDateString() === dStr)
+      .reduce((sum, t) => sum + (t.type === 'entrée' ? t.montant : -t.montant), 0);
+  });
+
+  let running = 0;
+  const values = dailyNets.map(n => { running += n; return running; });
+
+  const minV = Math.min(0, ...values);
+  const maxV = Math.max(0, ...values);
+
+  if (maxV === 0 && minV === 0) {
+    // Courbe décorative si aucune donnée
+    const y = h * 0.65;
+    const line = `M0 ${y} C${(w*0.25).toFixed(1)} ${(y*0.75).toFixed(1)},${(w*0.55).toFixed(1)} ${(h*0.5).toFixed(1)},${w.toFixed(1)} ${(h*0.28).toFixed(1)}`;
+    return { line, area: `${line} V${h} H0 Z` };
+  }
+
+  const range = maxV - minV;
+  const pad   = h * 0.12;
+  const yOf   = v => h - pad - ((v - minV) / range) * (h - 2 * pad);
+  const xOf   = i => (i / (DAYS - 1)) * w;
+  const pts   = values.map((v, i) => ({ x: xOf(i), y: yOf(v) }));
+
+  let line = `M${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = (pts[i].x - pts[i - 1].x) * 0.4;
+    line += ` C${(pts[i-1].x+dx).toFixed(1)} ${pts[i-1].y.toFixed(1)},${(pts[i].x-dx).toFixed(1)} ${pts[i].y.toFixed(1)},${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+  }
+  return { line, area: `${line} V${h} H0 Z` };
+};
+
+// ── Bouton pulsé vers les statistiques ────────────────────
+
+const PulseButton = ({ onPress }) => {
+  const { colors } = useTheme();
+  const scale   = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scale,   { toValue: 1.18, duration: 750, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 1,    duration: 750, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 0.5,  duration: 750, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1,    duration: 750, useNativeDriver: true }),
+        ]),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <Animated.View style={[
+        pulseStyles.btn,
+        { backgroundColor: colors.primary, shadowColor: colors.primary },
+        { transform: [{ scale }], opacity },
+      ]}>
+        <Ionicons name="bar-chart" size={20} color={colors.onPrimary} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+const pulseStyles = StyleSheet.create({
+  btn: {
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: 'center', justifyContent: 'center',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7, shadowRadius: 14, elevation: 8,
+  },
+});
 
 // ── Header ────────────────────────────────────────────────
 
@@ -59,19 +140,15 @@ const Header = () => {
 
 // ── Carte solde ───────────────────────────────────────────
 
-const BalanceCard = ({ totalBalance, monthlyIncome, monthlyExpense }) => {
+const BalanceCard = ({ totalBalance, monthlyIncome, monthlyExpense, transactions, onStatsPress }) => {
   const { colors, isDark } = useTheme();
   const s      = getStyles(colors, isDark);
   const shadow = getShadow(isDark);
 
-  const chartPath = [
-    `M0 ${CHART_H * 0.8}`,
-    `Q ${CHART_W * 0.1} ${CHART_H * 0.7}, ${CHART_W * 0.2} ${CHART_H * 0.75}`,
-    `T ${CHART_W * 0.4} ${CHART_H * 0.55}`,
-    `T ${CHART_W * 0.6} ${CHART_H * 0.65}`,
-    `T ${CHART_W * 0.8} ${CHART_H * 0.30}`,
-    `T ${CHART_W}   ${CHART_H * 0.18}`,
-  ].join(' ');
+  const { line: linePath, area: areaPath } = useMemo(
+    () => buildChartPath(transactions, CHART_W, CHART_H),
+    [transactions],
+  );
 
   return (
     <View style={[s.balanceCard, shadow.md]}>
@@ -83,9 +160,10 @@ const BalanceCard = ({ totalBalance, monthlyIncome, monthlyExpense }) => {
             <Text style={s.balanceCurrency}>FCFA</Text>
           </Text>
         </View>
+        <PulseButton onPress={onStatsPress} />
       </View>
 
-      {/* Graphique */}
+      {/* Graphique dynamique */}
       <Svg width={CHART_W} height={CHART_H} viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none">
         <Defs>
           <LinearGradient id="grad" x1="0" x2="0" y1="0" y2="1">
@@ -93,8 +171,8 @@ const BalanceCard = ({ totalBalance, monthlyIncome, monthlyExpense }) => {
             <Stop offset="100%" stopColor={colors.primaryDark} stopOpacity="0"    />
           </LinearGradient>
         </Defs>
-        <Path d={`${chartPath} V ${CHART_H} H 0 Z`} fill="url(#grad)" />
-        <Path d={chartPath} fill="none" stroke={colors.primary} strokeWidth="2" strokeLinecap="round" />
+        <Path d={areaPath} fill="url(#grad)" />
+        <Path d={linePath} fill="none" stroke={colors.primary} strokeWidth="2" strokeLinecap="round" />
       </Svg>
 
       {/* Résumé mensuel inline */}
@@ -201,18 +279,27 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
   const { colors, isDark } = useTheme();
   const s = getStyles(colors);
 
-  const [selectedType, setSelectedType] = useState(ACCOUNT_TYPES[0].id);
-  const [name,         setName]         = useState('');
-  const [balance,      setBalance]      = useState('');
-
+  const [name,   setName]   = useState('');
+  const [numero, setNumero] = useState('');
+  const [solde,  setSolde]  = useState('');
   const [saving, setSaving] = useState(false);
 
+  const reset = () => { setName(''); setNumero(''); setSolde(''); };
+
   const handleSave = async () => {
-    if (!name.trim()) { Alert.alert('Nom requis', 'Veuillez saisir un nom pour ce compte.'); return; }
+    if (!name.trim()) {
+      Alert.alert('Nom requis', 'Veuillez saisir un nom pour ce compte.');
+      return;
+    }
+    if (!numero.trim() || numero.trim().length < 8) {
+      Alert.alert('Numéro invalide', 'Le numéro de compte doit contenir au moins 8 caractères.');
+      return;
+    }
+    const solde_initial = parseFloat(solde.replace(/\s/g, '').replace(',', '.')) || 0;
     setSaving(true);
     try {
-      await onAdd({ name: name.trim() });
-      setName(''); setBalance(''); setSelectedType(ACCOUNT_TYPES[0].id);
+      await onAdd({ name: name.trim(), numero: numero.trim(), solde_initial });
+      reset();
       onClose();
     } catch (_) {
       Alert.alert('Erreur', 'Impossible de créer le compte. Vérifiez votre connexion.');
@@ -230,39 +317,13 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
         <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={onClose} />
 
         <View style={[s.modalSheet, { backgroundColor: colors.surface }]}>
-          {/* Handle */}
           <View style={[s.modalHandle, { backgroundColor: colors.border }]} />
 
-          {/* Titre */}
           <View style={s.modalHeader}>
             <Text style={[s.modalTitle, { color: colors.textPrimary }]}>Nouveau compte</Text>
             <TouchableOpacity onPress={onClose} style={[s.modalClose, { backgroundColor: colors.inputBg }]}>
               <Ionicons name="close" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
-
-          {/* Type de compte */}
-          <Text style={[s.modalLabel, { color: colors.textSecondary }]}>TYPE DE COMPTE</Text>
-          <View style={s.typeRow}>
-            {ACCOUNT_TYPES.map(t => {
-              const active = selectedType === t.id;
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[s.typeCard, active && { borderColor: colors.primary, backgroundColor: `${colors.primary}12` }]}
-                  onPress={() => setSelectedType(t.id)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[s.typeIcon, { backgroundColor: t.bg }]}>
-                    <Ionicons name={t.icon} size={18} color={t.textColor} />
-                  </View>
-                  <Text style={[s.typeLabel, { color: active ? colors.primary : colors.textSecondary }]}>
-                    {t.label}
-                  </Text>
-                  {active && <View style={[s.typeDot, { backgroundColor: colors.primary }]} />}
-                </TouchableOpacity>
-              );
-            })}
           </View>
 
           {/* Nom */}
@@ -279,16 +340,32 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
             />
           </View>
 
-          {/* Solde initial */}
-          <Text style={[s.modalLabel, { color: colors.textSecondary }]}>SOLDE INITIAL (FCFA)</Text>
+          {/* Numéro de compte */}
+          <Text style={[s.modalLabel, { color: colors.textSecondary }]}>NUMÉRO DE COMPTE</Text>
+          <View style={[s.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
+            <Ionicons name="card-outline" size={18} color={colors.textSecondary} style={{ marginLeft: 14 }} />
+            <TextInput
+              style={[s.modalInputText, { color: colors.textPrimary }]}
+              placeholder="Min. 8 caractères"
+              placeholderTextColor={colors.placeholder}
+              value={numero}
+              onChangeText={setNumero}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          {/* Solde initial (optionnel) */}
+          <Text style={[s.modalLabel, { color: colors.textSecondary }]}>
+            SOLDE INITIAL (FCFA) — <Text style={{ fontStyle: 'italic' }}>optionnel</Text>
+          </Text>
           <View style={[s.modalInput, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
             <Ionicons name="cash-outline" size={18} color={colors.textSecondary} style={{ marginLeft: 14 }} />
             <TextInput
               style={[s.modalInputText, { color: colors.textPrimary }]}
               placeholder="0"
               placeholderTextColor={colors.placeholder}
-              value={balance}
-              onChangeText={setBalance}
+              value={solde}
+              onChangeText={setSolde}
               keyboardType="numeric"
             />
             <Text style={[s.modalInputSuffix, { color: colors.placeholder }]}>FCFA</Text>
@@ -378,7 +455,7 @@ export const DashboardScreen = ({ navigation }) => {
       <AddAccountModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onAdd={({ name }) => addAccount({ libelle: name })}
+        onAdd={({ name, numero, solde_initial }) => addAccount({ libelle: name, numero, solde_initial })}
       />
 
       <ScrollView
@@ -391,6 +468,8 @@ export const DashboardScreen = ({ navigation }) => {
           totalBalance={totalBalance}
           monthlyIncome={monthlyIncome}
           monthlyExpense={monthlyExpense}
+          transactions={transactions}
+          onStatsPress={() => navigation.navigate('Reports')}
         />
 
         {/* Comptes */}
@@ -425,17 +504,6 @@ export const DashboardScreen = ({ navigation }) => {
             </ScrollView>
           </View>
         )}
-
-        {/* Bouton Statistiques */}
-        <TouchableOpacity
-          style={[s.statsBtn, { borderColor: colors.primary, backgroundColor: `${colors.primary}0D` }]}
-          onPress={() => navigation.navigate('Reports')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="bar-chart-outline" size={18} color={colors.primary} />
-          <Text style={[s.statsBtnText, { color: colors.primary }]}>Voir mes statistiques</Text>
-          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-        </TouchableOpacity>
 
         {/* Transactions récentes */}
         <View style={s.section}>

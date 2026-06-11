@@ -32,8 +32,6 @@ const normalizeAccount = (acc, index) => {
   };
 };
 
-const generateNumero = () =>
-  (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).toUpperCase().slice(0, 12).padStart(8, '0');
 
 const AccountContext = createContext(null);
 
@@ -56,8 +54,8 @@ export const AccountProvider = ({ children }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const addAccount = async ({ libelle }) => {
-    const res = await api.post('/comptes/', { libelle, numero: generateNumero() });
+  const addAccount = async ({ libelle, numero, solde_initial = 0 }) => {
+    const res = await api.post('/comptes/', { libelle, numero, solde_initial });
     if (res.data.success) {
       setAccounts(prev => [...prev, normalizeAccount(res.data.data, prev.length)]);
     }

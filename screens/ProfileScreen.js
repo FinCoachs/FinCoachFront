@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, Alert,
@@ -7,16 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
+import { useAccounts } from '../src/context/AccountContext';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../src/services/api';
-
-// ── Données mock ──────────────────────────────────────────
-
-const MOCK_ACCOUNTS = [
-  { id: 'boa',  name: 'BOA Bénin' },
-  { id: 'momo', name: 'MTN MoMo'  },
-];
 
 // ── Paramètres & Support ──────────────────────────────────
 
@@ -41,34 +34,25 @@ const Avatar = ({ colors, initial }) => (
 
 // ── Compte item ───────────────────────────────────────────
 
-const AccountItem = ({ account, onDelete, colors, isDark, isLast }) => {
-  const shadow = getShadow(isDark);
-  return (
-    <View style={[
-      styles.accountRow,
-      !isLast && { borderBottomWidth: 1, borderBottomColor: colors.divider },
-    ]}>
-      <View style={[styles.accountDot, { backgroundColor: colors.primary }]} />
+const AccountItem = ({ account, onDelete, colors, isLast }) => (
+  <View style={[
+    styles.accountRow,
+    !isLast && { borderBottomWidth: 1, borderBottomColor: colors.divider },
+  ]}>
+    <View style={[styles.accountDot, { backgroundColor: colors.primary }]} />
+    <View style={{ flex: 1 }}>
       <Text style={[styles.accountName, { color: colors.textPrimary }]}>{account.name}</Text>
-      <TouchableOpacity
-        style={styles.deleteBtn}
-        onPress={() =>
-          Alert.alert(
-            'Supprimer le compte',
-            `Retirer "${account.name}" de votre profil ?`,
-            [
-              { text: 'Annuler', style: 'cancel' },
-              { text: 'Supprimer', style: 'destructive', onPress: () => onDelete(account.id) },
-            ],
-          )
-        }
-        activeOpacity={0.7}
-      >
-        <Ionicons name="trash-outline" size={16} color={colors.expense} />
-      </TouchableOpacity>
+      {account.numero && (
+        <Text style={[styles.accountSub, { color: colors.textSecondary }]}>
+          {account.numero}
+        </Text>
+      )}
     </View>
-  );
-};
+    <TouchableOpacity style={styles.deleteBtn} onPress={() => onDelete(account.id)} activeOpacity={0.7}>
+      <Ionicons name="trash-outline" size={16} color={colors.expense} />
+    </TouchableOpacity>
+  </View>
+);
 
 // ── Ligne paramètre ───────────────────────────────────────
 
@@ -110,12 +94,26 @@ const Section = ({ label, children, colors }) => (
 // ── Screen ─────────────────────────────────────────────────
 
 export const ProfileScreen = ({ navigation }) => {
-  const { colors, isDark }      = useTheme();
-  const { user, initial, updateUser } = useUser();
-  const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
+  const { colors, isDark }              = useTheme();
+  const { user, initial, updateUser }   = useUser();
+  const { accounts, deleteAccount }     = useAccounts();
 
   const removeAccount = (id) =>
-    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    Alert.alert(
+      'Supprimer le compte',
+      `Retirer ce compte de votre profil ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer', style: 'destructive',
+          onPress: async () => {
+            try { await deleteAccount(id); } catch (_) {
+              Alert.alert('Erreur', 'Impossible de supprimer le compte.');
+            }
+          },
+        },
+      ],
+    );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -163,7 +161,6 @@ export const ProfileScreen = ({ navigation }) => {
                 account={acc}
                 onDelete={removeAccount}
                 colors={colors}
-                isDark={isDark}
                 isLast={i === accounts.length - 1}
               />
             ))
@@ -283,8 +280,9 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.stackMd,
     gap: SPACING.stackMd,
   },
-  accountDot: { width: 8, height: 8, borderRadius: 4 },
-  accountName: { flex: 1, fontSize: 15, fontWeight: '600' },
+  accountDot:  { width: 8, height: 8, borderRadius: 4, marginTop: 4 },
+  accountName: { fontSize: 15, fontWeight: '600' },
+  accountSub:  { fontSize: 11, marginTop: 2 },
   deleteBtn: {
     width: 34, height: 34, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',

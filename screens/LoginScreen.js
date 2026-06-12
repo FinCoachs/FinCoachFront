@@ -24,7 +24,7 @@ import { ActivityIndicator } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_WEB_CLIENT_ID = '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
 
 const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
 if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
@@ -37,6 +37,8 @@ export const LoginScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors]     = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+  const [loginError,  setLoginError]  = useState('');
 
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
@@ -49,7 +51,7 @@ export const LoginScreen = ({ navigation }) => {
       if (!accessToken) return;
       handleGoogleAuth(accessToken);
     } else if (response?.type === 'error') {
-      Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
+      setGoogleError(response.error?.message || 'Connexion Google annulée.');
     }
   }, [response]);
 
@@ -67,10 +69,7 @@ export const LoginScreen = ({ navigation }) => {
         navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       }
     } catch (error) {
-      Alert.alert(
-        'Erreur Google',
-        error.response?.data?.message || 'Impossible de se connecter avec Google.',
-      );
+      setGoogleError(error.response?.data?.message || 'Impossible de se connecter avec Google.');
     } finally {
       setIsLoading(false);
     }
@@ -117,10 +116,7 @@ export const LoginScreen = ({ navigation }) => {
         
         navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       } catch (error) {
-        Alert.alert(
-          'Erreur de connexion', 
-          error.response?.data?.message || 'Identifiants incorrects ou problème serveur.'
-        );
+        setLoginError(error.response?.data?.message || 'Identifiants incorrects ou problème serveur.');
       } finally {
         setIsLoading(false);
       }
@@ -186,6 +182,11 @@ export const LoginScreen = ({ navigation }) => {
           ) : (
             <Button title="Se connecter" onPress={handleLogin} variant="primary" />
           )}
+          {!!loginError && (
+            <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+              {loginError}
+            </Text>
+          )}
         </View>
 
         <View style={styles.divider}>
@@ -202,6 +203,11 @@ export const LoginScreen = ({ navigation }) => {
             <Ionicons name="logo-apple" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
+        {!!googleError && (
+          <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+            {googleError}
+          </Text>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>

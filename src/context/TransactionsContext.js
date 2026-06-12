@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-// Convertit une transaction API en format interne utilisé par les écrans
 const normalizeFromApi = (tx) => ({
   id:           tx.id,
   name:         tx.description || '',
@@ -23,23 +22,36 @@ export const TransactionsProvider = ({ children }) => {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/transactions/', { params: { limit: 15 } });
+      const res = await api.get('/transactions/', { params: { limit: 50 } });
       if (res.data.success) {
         setTransactions(res.data.data.map(normalizeFromApi));
       }
-    } catch (_) {
-      // non authentifié ou réseau — liste vide
-    }
+    } catch (_) {}
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Ajoute une transaction localement (sera remplacé par appel API dans une prochaine itération)
-  const addTransaction = (tx) => {
-    setTransactions(prev => [{ ...tx, id: Date.now() }, ...prev]);
+  const addTransaction = async ({ montant, date, description, type, categorie_id, compte_id }) => {
+    const res = await api.post('/transactions/', {
+      montant,
+      date: date instanceof Date ? date.toISOString() : date,
+      description: description || null,
+      type,
+      categorie_id,
+      compte_id,
+    });
+    if (res.data.success) {
+      setTransactions(prev => [normalizeFromApi(res.data.data), ...prev]);
+    }
+    return res.data;
   };
 
-  // Importe un lot de transactions SMS — déduplique par smsRef — extrait les soldes opérateurs
+  const deleteTransaction = async (id) => {
+    await api.delete(`/transactions/${id}`);
+    setTransactions(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Import SMS — local uniquement (les transactions SMS ne sont pas envoyées au back)
   const importSmsTransactions = (list) => {
     const newRefs = new Set(importedRefs);
     const toAdd   = [];
@@ -48,7 +60,7 @@ export const TransactionsProvider = ({ children }) => {
       const ref = tx.smsRef ?? `sms_${tx.date?.getTime?.() ?? i}_${i}`;
       if (!newRefs.has(ref)) {
         newRefs.add(ref);
-        toAdd.push({ ...tx, id: Date.now() + i, smsRef: ref });
+        toAdd.push({ ...tx, id: `sms_${Date.now()}_${i}`, smsRef: ref });
       }
     });
 
@@ -86,6 +98,7 @@ export const TransactionsProvider = ({ children }) => {
     <TransactionsContext.Provider value={{
       transactions,
       addTransaction,
+      deleteTransaction,
       importSmsTransactions,
       isRefImported,
       operatorBalances,

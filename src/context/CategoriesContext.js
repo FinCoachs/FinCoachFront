@@ -17,10 +17,8 @@ export const CategoriesProvider = ({ children }) => {
       }
     } catch (e) {
       if (e.response?.status === 404) {
-        // Authentifié mais aucune catégorie créée encore
         setCategories([]);
       }
-      // Autre erreur (réseau, 401) : on conserve les catégories par défaut
     }
   }, []);
 
@@ -39,19 +37,26 @@ export const CategoriesProvider = ({ children }) => {
         });
       }
     } catch (_) {
-      // Fallback local si l'API échoue
       setCategories(prev => {
         const color = assignColor(prev.length);
-        return [...prev, { ...cat, id: Date.now(), color }];
+        return [...prev, { ...cat, id: `local_${Date.now()}`, color }];
       });
     }
   };
 
-  const updateCategory = (id, updates) =>
+  const updateCategory = async (id, updates) => {
+    try {
+      await api.put(`/budgets/${id}`, updates);
+    } catch (_) {}
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
 
-  const deleteCategory = (id) =>
+  const deleteCategory = async (id) => {
+    try {
+      await api.delete(`/budgets/${id}`);
+    } catch (_) {}
     setCategories(prev => prev.filter(c => c.id !== id));
+  };
 
   return (
     <CategoriesContext.Provider value={{ categories, addCategory, updateCategory, deleteCategory, reload: load }}>

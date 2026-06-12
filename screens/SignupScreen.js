@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_WEB_CLIENT_ID = '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
 
 const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
 if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
@@ -40,6 +40,7 @@ export const SignupScreen = ({ navigation }) => {
   const [errors, setErrors] = useState({});
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleError,     setGoogleError]     = useState('');
 
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
     clientId:    GOOGLE_WEB_CLIENT_ID,
@@ -52,7 +53,7 @@ export const SignupScreen = ({ navigation }) => {
       if (!accessToken) return;
       handleGoogleAuth(accessToken);
     } else if (response?.type === 'error') {
-      Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
+      setGoogleError(response.error?.message || 'Connexion Google annulée.');
     }
   }, [response]);
 
@@ -70,10 +71,7 @@ export const SignupScreen = ({ navigation }) => {
         navigation.navigate('ProfileSetup');
       }
     } catch (error) {
-      Alert.alert(
-        'Erreur Google',
-        error.response?.data?.message || 'Impossible de se connecter avec Google.',
-      );
+      setGoogleError(error.response?.data?.message || 'Impossible de se connecter avec Google.');
     } finally {
       setIsGoogleLoading(false);
     }
@@ -200,6 +198,11 @@ export const SignupScreen = ({ navigation }) => {
               <Ionicons name="finger-print-outline" size={24} color={colors.onSurface} />
             </TouchableOpacity>
           </View>
+          {!!googleError && (
+            <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+              {googleError}
+            </Text>
+          )}
         </GlassCard>
 
         <View style={styles.loginRedirect}>

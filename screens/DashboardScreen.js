@@ -279,20 +279,22 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
   const { colors, isDark } = useTheme();
   const s = getStyles(colors);
 
-  const [name,   setName]   = useState('');
-  const [numero, setNumero] = useState('');
-  const [solde,  setSolde]  = useState('');
-  const [saving, setSaving] = useState(false);
+  const [name,     setName]     = useState('');
+  const [numero,   setNumero]   = useState('');
+  const [solde,    setSolde]    = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const reset = () => { setName(''); setNumero(''); setSolde(''); };
+  const reset = () => { setName(''); setNumero(''); setSolde(''); setErrorMsg(''); };
 
   const handleSave = async () => {
+    setErrorMsg('');
     if (!name.trim()) {
-      Alert.alert('Nom requis', 'Veuillez saisir un nom pour ce compte.');
+      setErrorMsg('Veuillez saisir un nom pour ce compte.');
       return;
     }
     if (!numero.trim() || numero.trim().length < 8) {
-      Alert.alert('Numéro invalide', 'Le numéro de compte doit contenir au moins 8 caractères.');
+      setErrorMsg('Le numéro de compte doit contenir au moins 8 caractères.');
       return;
     }
     const solde_initial = parseFloat(solde.replace(/\s/g, '').replace(',', '.')) || 0;
@@ -301,8 +303,8 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
       await onAdd({ name: name.trim(), numero: numero.trim(), solde_initial });
       reset();
       onClose();
-    } catch (_) {
-      Alert.alert('Erreur', 'Impossible de créer le compte. Vérifiez votre connexion.');
+    } catch (e) {
+      setErrorMsg(e.response?.data?.message || 'Impossible de créer le compte. Vérifiez votre connexion.');
     } finally {
       setSaving(false);
     }
@@ -371,6 +373,13 @@ const AddAccountModal = ({ visible, onClose, onAdd }) => {
             <Text style={[s.modalInputSuffix, { color: colors.placeholder }]}>FCFA</Text>
           </View>
 
+          {/* Erreur visible */}
+          {!!errorMsg && (
+            <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginTop: -4 }}>
+              {errorMsg}
+            </Text>
+          )}
+
           {/* Bouton */}
           <TouchableOpacity
             style={[s.modalSaveBtn, { backgroundColor: saving ? colors.border : colors.primary, ...(!saving && getShadow(isDark).glow(colors.primary)) }]}
@@ -401,12 +410,21 @@ export const DashboardScreen = ({ navigation }) => {
 
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Recharge toutes les données dès l'affichage de l'écran (l'utilisateur est authentifié)
+  // Recharge au montage (premier affichage après login)
   useEffect(() => {
     reloadAccounts();
     reloadTx();
     reloadCats();
   }, []);
+
+  // Recharge quand l'écran "Main" redevient focus (retour depuis AddTransaction, Reports…)
+  useEffect(() => {
+    return navigation.addListener('focus', () => {
+      reloadAccounts();
+      reloadTx();
+      reloadCats();
+    });
+  }, [navigation]);
 
   // 4 transactions les plus récentes
   const recentTxs = transactions.slice(0, 4);

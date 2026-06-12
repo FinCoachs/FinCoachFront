@@ -4,6 +4,7 @@ import {
   StyleSheet,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
@@ -12,36 +13,46 @@ import { Button } from '../src/components';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../src/services/api';
 import { useUser } from '../src/context/UserContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export const WelcomeScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
   const { updateUser } = useUser();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const checkToken = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
         if (token) {
-          // Verify token by making a quick request, e.g. to /user if it exists
           const response = await api.get('/user');
-          if (response.data) {
+          if (response.data?.success) {
+            const userData = response.data.data;
             updateUser({
-              email: response.data.email,
-              fullName: response.data.name || ''
+              email:    userData.email    || '',
+              fullName: userData.name     || '',
             });
             navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+            return;
           }
         }
-      } catch (error) {
-        // Token invalid or network error, let user login manually
+      } catch (_) {
         await AsyncStorage.removeItem('userToken');
       }
+      setIsChecking(false);
     };
 
     checkToken();
   }, []);
+
+  if (isChecking) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>

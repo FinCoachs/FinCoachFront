@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar, KeyboardAvoidingView, Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +11,6 @@ import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
 import api from '../src/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, Alert } from 'react-native';
 import { Input } from '../src/components';
 
 // ── Données du formulaire ─────────────────────
@@ -145,6 +145,7 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
   const [goal,         setGoal]         = useState('budget');
   const [household,    setHousehold]    = useState('single');
   const [isLoading,    setIsLoading]    = useState(false);
+  const [errorMsg,     setErrorMsg]     = useState('');
 
   const handleStatusChange = (id) => {
     setStatus(id);
@@ -161,35 +162,49 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
   const handleFinish = async () => {
     if (!isComplete) return;
 
+    setErrorMsg('');
     setIsLoading(true);
+
+    // Utilisateur venu via Google OAuth — déjà enregistré, token déjà stocké
+    const isGoogleUser = !signupData.email && !signupData.password;
+
+    const effectiveStatus = status === 'autre' ? customStatus.trim() : status;
+    const profilData = JSON.stringify({ status: effectiveStatus, income, accounts, goal, household });
+
+    if (isGoogleUser) {
+      try {
+        await api.patch('/user/profil', { profil: profilData });
+      } catch (_) {}
+      setIsLoading(false);
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      return;
+    }
+
     try {
-      const effectiveStatus = status === 'autre' ? customStatus.trim() : status;
-      const profilData = JSON.stringify({ status: effectiveStatus, income, accounts, goal, household });
-      
-      // Envoi de la requête d'inscription avec les infos de profil
       const response = await api.post('/register', {
-        name: signupData.fullName?.trim() || 'Utilisateur',
-        email: signupData.email?.trim() || '',
-        password: signupData.password || '',
-        password_confirmation: signupData.confirmPassword || '',
-        profil: profilData,
+        name:                  signupData.fullName?.trim() || 'Utilisateur',
+        email:                 signupData.email?.trim(),
+        password:              signupData.password,
+        password_confirmation: signupData.confirmPassword,
+        profil:                profilData,
       });
 
       if (response.data.token) {
         await AsyncStorage.setItem('userToken', response.data.token);
       }
 
-      updateUser({ 
-        fullName: signupData.fullName?.trim() || '', 
-        email: signupData.email?.trim() || '' 
+      updateUser({
+        fullName: signupData.fullName?.trim() || '',
+        email:    signupData.email?.trim()    || '',
       });
-      
+
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error) {
-      Alert.alert(
-        "Erreur d'inscription", 
-        error.response?.data?.message || "Une erreur est survenue lors de la création du compte."
-      );
+      const data = error.response?.data;
+      const msg  = data?.message
+        || (data?.errors ? Object.values(data.errors).flat().join('\n') : null)
+        || "Une erreur est survenue lors de la création du compte.";
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }
@@ -360,7 +375,12 @@ export const ProfileSetupScreen = ({ navigation, route }) => {
       <View style={[styles.footer, { backgroundColor: colors.background }]}>
         {!isComplete && (
           <Text style={styles.footerHint}>
-            {accounts.length === 0 ? 'Sélectionnez au moins un compte' : 'Complétez toutes les étapes'}
+            {accounts.length === 0 ? 'Sélectionnez au moins un type de compte' : 'Complétez toutes les étapes'}
+          </Text>
+        )}
+        {!!errorMsg && (
+          <Text style={[styles.footerHint, { color: colors.error ?? '#ff6b6b' }]}>
+            {errorMsg}
           </Text>
         )}
         {isLoading ? (

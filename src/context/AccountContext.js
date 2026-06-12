@@ -61,10 +61,15 @@ export const AccountProvider = ({ children }) => {
     }
   };
 
+  const deleteAccount = async (id) => {
+    await api.delete(`/comptes/${id}`);
+    setAccounts(prev => prev.filter(a => a.id !== id));
+  };
+
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
   return (
-    <AccountContext.Provider value={{ accounts, addAccount, loading, totalBalance, reload: load }}>
+    <AccountContext.Provider value={{ accounts, addAccount, deleteAccount, loading, totalBalance, reload: load }}>
       {children}
     </AccountContext.Provider>
   );

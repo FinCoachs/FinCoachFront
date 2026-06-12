@@ -9,12 +9,12 @@ import {
   StatusBar,
   Platform,
   Dimensions,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
+import { COLOR_OPTIONS } from '../src/constants/categories';
 import { useTheme } from '../src/context/ThemeContext';
 import { useCategories } from '../src/context/CategoriesContext';
 import { useTransactions } from '../src/context/TransactionsContext';
@@ -138,15 +138,16 @@ const NumPad = ({ onPress }) => {
 export const AddTransactionScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors);
-  const { categories: allCategories }    = useCategories();
-  const { addTransaction }               = useTransactions();
-  const { accounts, totalBalance }       = useAccounts();
+  const { categories: allCategories, addCategory } = useCategories();
+  const { addTransaction }                         = useTransactions();
+  const { accounts, totalBalance }                 = useAccounts();
 
   const [type, setType]               = useState('depense');
   const [rawAmount, setRawAmount]     = useState('');
   const [description, setDescription] = useState('');
   const [numpadVisible, setNumpadVisible] = useState(false);
   const [isSaving, setIsSaving]       = useState(false);
+  const [saveError,  setSaveError]    = useState('');
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(
     () => allCategories[0]?.id ?? null,
@@ -154,6 +155,11 @@ export const AddTransactionScreen = ({ navigation }) => {
   const [selectedCompteId, setSelectedCompteId] = useState(
     () => accounts[0]?.id ?? null,
   );
+
+  const [showNewCatForm, setShowNewCatForm] = useState(false);
+  const [newCatName,     setNewCatName]     = useState('');
+  const [newCatColor,    setNewCatColor]    = useState(COLOR_OPTIONS[0]);
+  const [newCatSaving,   setNewCatSaving]   = useState(false);
 
   const scrollRef = useRef(null);
 
@@ -169,20 +175,37 @@ export const AddTransactionScreen = ({ navigation }) => {
     setRawAmount(prev => prev + key);
   };
 
+  // ── Nouvelle catégorie inline ─────────────
+  const handleCreateCategory = async () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    setNewCatSaving(true);
+    try {
+      const newId = await addCategory({ libelle: name, plafond: null, color: newCatColor });
+      if (newId) setSelectedCategoryId(newId);
+      setShowNewCatForm(false);
+      setNewCatName('');
+      setNewCatColor(COLOR_OPTIONS[0]);
+    } finally {
+      setNewCatSaving(false);
+    }
+  };
+
   // ── Save ──────────────────────────────────
   const handleSave = async () => {
     const numeric = parseFloat(rawAmount.replace(',', '.')) || 0;
     if (numeric === 0) return;
 
     if (!selectedCategoryId) {
-      Alert.alert('Catégorie requise', 'Veuillez sélectionner ou créer une catégorie.');
+      setSaveError('Veuillez sélectionner ou créer une catégorie.');
       return;
     }
     if (!selectedCompteId) {
-      Alert.alert('Compte requis', 'Veuillez d\'abord ajouter un compte financier.');
+      setSaveError('Veuillez d\'abord ajouter un compte financier.');
       return;
     }
 
+    setSaveError('');
     setIsSaving(true);
     try {
       await addTransaction({
@@ -195,7 +218,7 @@ export const AddTransactionScreen = ({ navigation }) => {
       });
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Erreur', e.response?.data?.message || 'Impossible d\'enregistrer la transaction.');
+      setSaveError(e.response?.data?.message || 'Impossible d\'enregistrer la transaction.');
     } finally {
       setIsSaving(false);
     }
@@ -323,12 +346,21 @@ export const AddTransactionScreen = ({ navigation }) => {
 
         {/* Catégorie */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Catégorie</Text>
-          {allCategories.length === 0 ? (
-            <Text style={[styles.emptyAccountsText, { color: colors.placeholder }]}>
-              Aucune catégorie — créez-en une depuis Budgets.
-            </Text>
-          ) : (
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionLabel}>Catégorie</Text>
+            {!showNewCatForm && (
+              <TouchableOpacity
+                style={styles.addCatBtn}
+                onPress={() => { setShowNewCatForm(true); setNumpadVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={15} color={colors.primary} />
+                <Text style={styles.addCatBtnText}>Nouvelle</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {allCategories.length > 0 && (
             <View style={styles.chipsWrap}>
               {allCategories.map(cat => (
                 <CategoryChip
@@ -339,6 +371,66 @@ export const AddTransactionScreen = ({ navigation }) => {
                 />
               ))}
             </View>
+          )}
+
+          {showNewCatForm && (
+            <View style={styles.newCatForm}>
+              <View style={styles.newCatInputRow}>
+                <TextInput
+                  style={styles.newCatInput}
+                  placeholder="Nom de la catégorie"
+                  placeholderTextColor={colors.placeholder}
+                  value={newCatName}
+                  onChangeText={setNewCatName}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleCreateCategory}
+                />
+                <TouchableOpacity
+                  onPress={() => { setShowNewCatForm(false); setNewCatName(''); setNewCatColor(COLOR_OPTIONS[0]); }}
+                  style={styles.newCatClose}
+                >
+                  <Ionicons name="close" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.colorPicker}>
+                {COLOR_OPTIONS.map(c => (
+                  <TouchableOpacity
+                    key={c}
+                    onPress={() => setNewCatColor(c)}
+                    style={[
+                      styles.colorDot,
+                      { backgroundColor: c },
+                      newCatColor === c && styles.colorDotSelected,
+                    ]}
+                    activeOpacity={0.8}
+                  />
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.newCatSaveBtn, (!newCatName.trim() || newCatSaving) && styles.newCatSaveBtnDisabled]}
+                onPress={handleCreateCategory}
+                disabled={!newCatName.trim() || newCatSaving}
+                activeOpacity={0.8}
+              >
+                {newCatSaving ? (
+                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                ) : (
+                  <>
+                    <View style={[styles.colorDot, { backgroundColor: newCatColor, width: 10, height: 10, borderRadius: 5 }]} />
+                    <Text style={styles.newCatSaveBtnText}>Créer « {newCatName.trim() || '…'} »</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {allCategories.length === 0 && !showNewCatForm && (
+            <Text style={[styles.emptyAccountsText, { color: colors.placeholder }]}>
+              Aucune catégorie — créez-en une ci-dessus.
+            </Text>
           )}
         </View>
 
@@ -383,6 +475,11 @@ export const AddTransactionScreen = ({ navigation }) => {
           </>
         )}
 
+        {!!saveError && (
+          <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>
+            {saveError}
+          </Text>
+        )}
         <TouchableOpacity
           style={[styles.saveBtn, (!hasAmount || isSaving) && styles.saveBtnDisabled]}
           onPress={handleSave}
@@ -535,6 +632,36 @@ const getStyles = (colors) => StyleSheet.create({
   saveBtnDisabled:     { backgroundColor: colors.inputBg, shadowOpacity: 0, elevation: 0 },
   saveBtnText:         { fontSize: 16, fontWeight: '700', color: colors.onPrimary },
   saveBtnTextDisabled: { color: colors.textSecondary },
+
+  sectionRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addCatBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addCatBtnText:  { fontSize: 12, fontWeight: '600', color: colors.primary },
+
+  newCatForm: {
+    backgroundColor: colors.cardBg, borderRadius: 14, padding: 14, gap: 12,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  newCatInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  newCatInput:    { flex: 1, fontSize: 14, color: colors.textPrimary, padding: 0 },
+  newCatClose: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.surfaceLight, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+
+  colorPicker:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  colorDot:         { width: 26, height: 26, borderRadius: 13 },
+  colorDotSelected: {
+    borderWidth: 3, borderColor: colors.background,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 5, elevation: 5,
+  },
+
+  newCatSaveBtn: {
+    height: 40, backgroundColor: colors.primary, borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  },
+  newCatSaveBtnDisabled: { backgroundColor: colors.inputBg },
+  newCatSaveBtnText:     { fontSize: 13, fontWeight: '700', color: colors.onPrimary },
 });
 
 export default AddTransactionScreen;

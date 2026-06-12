@@ -31,16 +31,20 @@ export const CategoriesProvider = ({ children }) => {
         plafond: cat.plafond || undefined,
       });
       if (res.data.success) {
+        const newId = res.data.data.id;
         setCategories(prev => {
-          const color = assignColor(prev.length);
+          const color = cat.color || assignColor(prev.length);
           return [...prev, { ...res.data.data, color }];
         });
+        return newId;
       }
     } catch (_) {
+      const localId = `local_${Date.now()}`;
       setCategories(prev => {
-        const color = assignColor(prev.length);
-        return [...prev, { ...cat, id: `local_${Date.now()}`, color }];
+        const color = cat.color || assignColor(prev.length);
+        return [...prev, { ...cat, id: localId, color }];
       });
+      return localId;
     }
   };
 

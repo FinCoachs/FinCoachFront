@@ -1,29 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../src/context/ThemeContext';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
 
-// ── Mock data ─────────────────────────────────────────────
-
-const INITIAL_MESSAGES = [
-  {
-    id: '1',
-    role: 'coach',
-    text: "Bonjour ! Je viens d'analyser vos dépenses de la semaine au Marché Dantokpa. Vous avez optimisé votre budget transport de 12% par rapport au mois dernier. Souhaitez-vous que j'ajuste votre objectif d'épargne ?",
-    time: '09:41',
-  },
-  {
-    id: '2',
-    role: 'user',
-    text: 'C\'est une excellente nouvelle ! Oui, place les économies dans mon coffre "Études".',
-    time: '09:42',
-  },
-];
+const API_URL = 'https://fincoachback.onrender.com/api';
 
 const SUGGESTIONS = ['Calculer mon reste à vivre', 'Rapport mensuel', 'Conseils MoMo'];
 
@@ -69,19 +55,18 @@ const ThinkingDots = ({ colors }) => {
   const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const makeDotAnim = (dot, initialDelay) =>
+    const makeDotAnim = (dot, delay) =>
       Animated.loop(
         Animated.sequence([
-          Animated.delay(initialDelay),
+          Animated.delay(delay),
           Animated.timing(dot, { toValue: 1, duration: 280, useNativeDriver: true }),
           Animated.timing(dot, { toValue: 0, duration: 280, useNativeDriver: true }),
-          Animated.delay(1400 - initialDelay - 560),
+          Animated.delay(840 - delay),
         ])
       );
-
     const a1 = makeDotAnim(dot1, 0);
-    const a2 = makeDotAnim(dot2, 160);
-    const a3 = makeDotAnim(dot3, 320);
+    const a2 = makeDotAnim(dot2, 200);
+    const a3 = makeDotAnim(dot3, 400);
     a1.start(); a2.start(); a3.start();
     return () => { a1.stop(); a2.stop(); a3.stop(); };
   }, [dot1, dot2, dot3]);
@@ -91,10 +76,7 @@ const ThinkingDots = ({ colors }) => {
       {[dot1, dot2, dot3].map((anim, i) => (
         <Animated.View
           key={i}
-          style={[
-            styles.dot,
-            { backgroundColor: colors.primary, transform: [{ scale: anim }], opacity: anim },
-          ]}
+          style={[styles.dot, { backgroundColor: colors.primary, transform: [{ scale: anim }], opacity: anim }]}
         />
       ))}
     </View>
@@ -104,18 +86,15 @@ const ThinkingDots = ({ colors }) => {
 // ── Message bubble ─────────────────────────────────────────
 
 const MessageBubble = ({ message, colors, isDark }) => {
-  const shadow   = getShadow(isDark);
-  const isCoach  = message.role === 'coach';
+  const shadow  = getShadow(isDark);
+  const isCoach = message.expediteur === 'agent';
 
   if (isCoach) {
     return (
       <View style={styles.coachMsgWrap}>
-        <View style={[
-          styles.glassBubble,
-          { backgroundColor: colors.glassBg, borderColor: colors.glassBorder },
-          shadow.sm,
-        ]}>
-          <Text style={[styles.msgText, { color: colors.onSurface }]}>{message.text}</Text>
+        <View style={[styles.glassBubble, { backgroundColor: colors.glassBg, borderColor: colors.glassBorder }, shadow.sm]}>
+          <Text style={[styles.msgText, { color: colors.onSurface }]}>{message.contenu}</Text>
+          {message.isStreaming && <ThinkingDots colors={colors} />}
         </View>
         <Text style={[styles.timeText, { color: colors.textSecondary }]}>{message.time}</Text>
       </View>
@@ -124,31 +103,21 @@ const MessageBubble = ({ message, colors, isDark }) => {
 
   return (
     <View style={styles.userMsgWrap}>
-      <View style={[
-        styles.userBubble,
-        { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}30` },
-      ]}>
-        <Text style={[styles.msgText, { color: colors.primary }]}>{message.text}</Text>
+      <View style={[styles.userBubble, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}30` }]}>
+        <Text style={[styles.msgText, { color: colors.primary }]}>{message.contenu}</Text>
       </View>
-      <Text style={[styles.timeText, { color: colors.textSecondary, textAlign: 'right' }]}>
-        {message.time}
-      </Text>
+      <Text style={[styles.timeText, { color: colors.textSecondary, textAlign: 'right' }]}>{message.time}</Text>
     </View>
   );
 };
 
-// ── Thinking indicator ─────────────────────────────────────
+// ── Thinking indicator (avant que le stream démarre) ───────
 
 const ThinkingIndicator = ({ colors }) => (
-  <View style={[
-    styles.thinkingIndicator,
-    { backgroundColor: colors.glassBg, borderColor: colors.glassBorder },
-  ]}>
+  <View style={[styles.thinkingIndicator, { backgroundColor: colors.glassBg, borderColor: colors.glassBorder }]}>
     <MaterialCommunityIcons name="robot-outline" size={18} color={colors.primary} />
     <ThinkingDots colors={colors} />
-    <Text style={[styles.thinkingText, { color: `${colors.primary}CC` }]}>
-      Le Coach réfléchit...
-    </Text>
+    <Text style={[styles.thinkingText, { color: `${colors.primary}CC` }]}>Le Coach réfléchit...</Text>
   </View>
 );
 
@@ -171,7 +140,7 @@ const SuggestionChips = ({ onPress, colors }) => (
 
 // ── Input bar ─────────────────────────────────────────────
 
-const InputBar = ({ value, onChange, onSend, colors, isDark }) => {
+const InputBar = ({ value, onChange, onSend, disabled, colors, isDark }) => {
   const shadow = getShadow(isDark);
   return (
     <View style={[
@@ -188,10 +157,12 @@ const InputBar = ({ value, onChange, onSend, colors, isDark }) => {
         multiline
         returnKeyType="send"
         onSubmitEditing={onSend}
+        editable={!disabled}
       />
       <TouchableOpacity
-        style={[styles.sendBtn, { backgroundColor: colors.primary }]}
+        style={[styles.sendBtn, { backgroundColor: disabled ? colors.border : colors.primary }]}
         onPress={onSend}
+        disabled={disabled}
         activeOpacity={0.85}
       >
         <Ionicons name="arrow-up" size={18} color={colors.onPrimary} />
@@ -202,67 +173,202 @@ const InputBar = ({ value, onChange, onSend, colors, isDark }) => {
 
 // ── Header ─────────────────────────────────────────────────
 
-const CoachHeader = ({ colors, onHistoryPress }) => (
+const CoachHeader = ({ colors, onHistoryPress, onClearPress }) => (
   <View style={[styles.header, { backgroundColor: `${colors.surface}CC`, borderBottomColor: colors.borderLight }]}>
     <View style={styles.headerLeft}>
       <View style={[styles.avatarWrap, { borderColor: `${colors.primary}30`, backgroundColor: `${colors.primary}12` }]}>
-        <Text style={[styles.avatarText, { color: colors.primary }]}>A</Text>
+        <MaterialCommunityIcons name="robot-outline" size={18} color={colors.primary} />
       </View>
       <Text style={[styles.headerTitle, { color: colors.primary }]}>Coach IA</Text>
     </View>
-    <TouchableOpacity
-      style={[styles.historyBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
-      onPress={onHistoryPress}
-      activeOpacity={0.7}
-    >
-      <Ionicons name="time-outline" size={20} color={colors.primary} />
-    </TouchableOpacity>
+    <View style={styles.headerActions}>
+      <TouchableOpacity
+        style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
+        onPress={onHistoryPress}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
+        onPress={onClearPress}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
+    </View>
   </View>
 );
 
 // ── Screen ─────────────────────────────────────────────────
 
 export const CoachIAScreen = ({ navigation }) => {
-  const { colors, isDark }        = useTheme();
-  const [messages, setMessages]   = useState(INITIAL_MESSAGES);
-  const [inputText, setInputText] = useState('');
-  const [isThinking, setIsThinking] = useState(true);
-  const scrollRef                 = useRef(null);
+  const { colors, isDark }          = useTheme();
+  const [messages,   setMessages]   = useState([]);
+  const [inputText,  setInputText]  = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [isSending,  setIsSending]  = useState(false);
+  const scrollRef                   = useRef(null);
 
-  const handleSend = () => {
+  const getTime = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  const welcomeMsg = () => ({
+    id:         'welcome',
+    expediteur: 'agent',
+    contenu:    "Bonjour ! Je suis FinCoach, votre assistant financier personnel. Comment puis-je vous aider aujourd'hui ?",
+    time:       getTime(),
+  });
+
+  const formatMessages = (raw) =>
+    raw.map((m) => ({
+      ...m,
+      time: new Date(m.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    }));
+
+  // Chargement de l'historique
+  const loadHistory = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res   = await fetch(`${API_URL}/messages`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const json = await res.json();
+      if (json.success && json.data?.length > 0) {
+        setMessages(formatMessages(json.data));
+      } else {
+        setMessages([welcomeMsg()]);
+      }
+    } catch {
+      setMessages([welcomeMsg()]);
+    }
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  // Efface l'historique
+  const handleClear = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      await fetch(`${API_URL}/messages`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* silencieux */ }
+    setMessages([{
+      id:         'cleared',
+      expediteur: 'agent',
+      contenu:    "Historique effacé. Comment puis-je vous aider ?",
+      time:       getTime(),
+    }]);
+  }, []);
+
+  // Envoi avec streaming
+  const handleSend = useCallback(async () => {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || isSending) return;
 
-    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text, time: now }]);
+    setMessages(prev => [...prev, {
+      id:         Date.now().toString(),
+      expediteur: 'utilisateur',
+      contenu:    text,
+      time:       getTime(),
+    }]);
     setInputText('');
+    setIsSending(true);
     setIsThinking(true);
 
-    setTimeout(() => {
-      setIsThinking(false);
-      const replyTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      setMessages(prev => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'coach',
-          text: "J'ai bien pris en compte votre demande. Je vais analyser vos finances et vous préparer une réponse personnalisée.",
-          time: replyTime,
+    const streamId = `stream-${Date.now()}`;
+
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+
+      const response = await fetch(`${API_URL}/messages`, {
+        method:  'POST',
+        headers: {
+          Authorization:  `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept:         'text/event-stream',
         },
-      ]);
-    }, 2000);
-  };
+        body: JSON.stringify({ contenu: text }),
+      });
+
+      if (!response.ok) throw new Error('Erreur serveur');
+
+      const reader  = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) throw new Error('Streaming non supporté');
+
+      setIsThinking(false);
+      setMessages(prev => [...prev, {
+        id:          streamId,
+        expediteur:  'agent',
+        contenu:     '',
+        time:        getTime(),
+        isStreaming: true,
+      }]);
+
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        for (const line of chunk.split('\n')) {
+          let token = '';
+          if (line.startsWith('data: ')) {
+            const raw = line.slice(6).trim();
+            if (raw === '[DONE]') continue;
+            try { token = JSON.parse(raw)?.text ?? raw; }
+            catch { token = raw; }
+          } else {
+            token = line;
+          }
+          if (token) {
+            fullText += token;
+            setMessages(prev => prev.map(m =>
+              m.id === streamId ? { ...m, contenu: fullText } : m
+            ));
+          }
+        }
+      }
+
+      setMessages(prev => prev.map(m =>
+        m.id === streamId ? { ...m, isStreaming: false } : m
+      ));
+
+    } catch {
+      setIsThinking(false);
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== streamId || m.contenu);
+        const last = filtered[filtered.length - 1];
+        if (last?.id === streamId && !last.contenu) {
+          return [...filtered.slice(0, -1), {
+            ...last,
+            contenu:     "Je rencontre une difficulté technique. Veuillez réessayer.",
+            isStreaming: false,
+          }];
+        }
+        return filtered;
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }, [inputText, isSending]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <AIPulse colors={colors} />
 
-      <CoachHeader colors={colors} onHistoryPress={() => navigation?.navigate('Recommandations')} />
+      <CoachHeader
+        colors={colors}
+        onHistoryPress={() => navigation?.navigate('Recommandations')}
+        onClearPress={handleClear}
+      />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -270,7 +376,7 @@ export const CoachIAScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
-          {messages.map(msg => (
+          {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} colors={colors} isDark={isDark} />
           ))}
           {isThinking && <ThinkingIndicator colors={colors} />}
@@ -282,6 +388,7 @@ export const CoachIAScreen = ({ navigation }) => {
             value={inputText}
             onChange={setInputText}
             onSend={handleSend}
+            disabled={isSending}
             colors={colors}
             isDark={isDark}
           />
@@ -308,22 +415,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.marginX,
-    height: 56,
-    borderBottomWidth: 1,
-    zIndex: 10,
+    height: 56, borderBottomWidth: 1, zIndex: 10,
   },
-  headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.stackMd },
+  headerLeft:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.stackMd },
+  headerActions: { flexDirection: 'row', gap: SPACING.stackSm },
   avatarWrap: {
     width: 32, height: 32, borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
-  avatarText:  { fontSize: 14, fontWeight: '700' },
   headerTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  historyBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1,
+  headerBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
 
   scroll:        { flex: 1, zIndex: 1 },
@@ -336,15 +439,12 @@ const styles = StyleSheet.create({
   coachMsgWrap: { alignItems: 'flex-start', maxWidth: '85%' },
   glassBubble: {
     padding: SPACING.stackMd,
-    borderRadius: 16, borderTopLeftRadius: 4,
-    borderWidth: 1,
+    borderRadius: 16, borderTopLeftRadius: 4, borderWidth: 1,
   },
-
   userMsgWrap: { alignSelf: 'flex-end', alignItems: 'flex-end', maxWidth: '85%' },
   userBubble: {
     padding: SPACING.stackMd,
-    borderRadius: 16, borderTopRightRadius: 4,
-    borderWidth: 1,
+    borderRadius: 16, borderTopRightRadius: 4, borderWidth: 1,
   },
 
   msgText:  { fontSize: 14, lineHeight: 20 },
@@ -357,15 +457,14 @@ const styles = StyleSheet.create({
     borderRadius: 20, borderWidth: 1, gap: SPACING.stackSm,
   },
   thinkingRow: { flexDirection: 'row', gap: 4 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot:         { width: 6, height: 6, borderRadius: 3 },
   thinkingText: { fontSize: 11, fontWeight: '500', marginLeft: 4 },
 
   bottomArea: {
     paddingHorizontal: SPACING.marginX,
     paddingBottom: SPACING.stackMd,
     paddingTop: SPACING.stackSm,
-    gap: SPACING.stackSm,
-    zIndex: 10,
+    gap: SPACING.stackSm, zIndex: 10,
   },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.stackSm },
   chip: {
@@ -377,13 +476,9 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 16, borderWidth: 1,
-    paddingHorizontal: 4, gap: SPACING.stackSm,
-    minHeight: 52,
+    paddingHorizontal: 4, gap: SPACING.stackSm, minHeight: 52,
   },
-  input: {
-    flex: 1, fontSize: 14,
-    paddingVertical: 12, maxHeight: 100,
-  },
+  input:   { flex: 1, fontSize: 14, paddingVertical: 12, maxHeight: 100 },
   sendBtn: {
     width: 40, height: 40, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',

@@ -1,71 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar,
+  TextInput, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../src/context/ThemeContext';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
-
-// ── Données ───────────────────────────────────────────────
-
-const RECOMMANDATIONS = [
-  {
-    id: '1',
-    categorie: 'Alertes',
-    label: 'ALERTE BUDGET',
-    iconLib: 'community',
-    icon: 'lightning-bolt',
-    texte: "Votre budget 'Loisirs' approche de sa limite (92% consommé). Évitez les dépenses non essentielles cette semaine pour rester dans vos objectifs.",
-    temps: 'Il y a 2h',
-  },
-  {
-    id: '2',
-    categorie: 'Épargne',
-    label: 'CONSEIL ÉPARGNE',
-    iconLib: 'community',
-    icon: 'piggy-bank',
-    texte: "Vous avez 125 000 FCFA dormant sur votre compte courant depuis 15 jours. Placez-les sur votre compte épargne pour générer des intérêts.",
-    temps: 'Il y a 5h',
-  },
-  {
-    id: '3',
-    categorie: 'Alertes',
-    label: 'ACTIVITÉ INHABITUELLE',
-    iconLib: 'ionicons',
-    icon: 'alert-circle',
-    texte: "Une transaction de 45 000 FCFA via MoMo a été détectée à 03:00 du matin. S'agit-il bien de vous ?",
-    temps: 'Hier',
-  },
-  {
-    id: '4',
-    categorie: 'Dépenses',
-    label: 'OPTIMISATION ABONNEMENT',
-    iconLib: 'ionicons',
-    icon: 'trending-down',
-    texte: "Vous payez deux abonnements de streaming musical. En combinant ces services, vous pourriez économiser 2 500 FCFA par mois.",
-    temps: 'Hier',
-  },
-  {
-    id: '5',
-    categorie: 'Épargne',
-    label: 'OBJECTIF ATTEINT',
-    iconLib: 'ionicons',
-    icon: 'rocket',
-    texte: "Félicitations ! Votre fonds d'urgence a atteint 50% de son objectif. Continuez ainsi pour une sécurité financière totale.",
-    temps: '2 jours',
-  },
-  {
-    id: '6',
-    categorie: 'Alertes',
-    label: 'PRÉVISION FACTURE',
-    iconLib: 'ionicons',
-    icon: 'calendar',
-    texte: "Votre facture d'électricité SBEE est prévue pour dans 3 jours (approx. 22 000 FCFA). Prévoyez les fonds nécessaires.",
-    temps: '3 jours',
-  },
-];
+import api from '../src/services/api';
 
 const FILTRES = ['Tout', 'Dépenses', 'Épargne', 'Alertes'];
 
@@ -82,11 +24,9 @@ const RecoCard = ({ item, colors, isDark }) => {
   const shadow = getShadow(isDark);
   return (
     <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }, shadow.sm]}>
-      {/* Accent gauche jaune */}
       <View style={[styles.accentBar, { backgroundColor: colors.secondary }]} />
 
       <View style={styles.cardContent}>
-        {/* En-tête */}
         <View style={styles.cardHeader}>
           <View style={styles.cardLabelRow}>
             <Icon lib={item.iconLib} name={item.icon} size={18} color={colors.secondary} />
@@ -95,7 +35,6 @@ const RecoCard = ({ item, colors, isDark }) => {
           <Text style={[styles.cardTime, { color: colors.textSecondary }]}>{item.temps}</Text>
         </View>
 
-        {/* Texte */}
         <Text style={[styles.cardText, { color: colors.onSurface ?? colors.textPrimary }]}>
           {item.texte}
         </Text>
@@ -107,12 +46,34 @@ const RecoCard = ({ item, colors, isDark }) => {
 // ── Screen ─────────────────────────────────────────────────
 
 export const RecommandationsScreen = ({ navigation }) => {
-  const { colors, isDark }        = useTheme();
-  const [search,  setSearch]      = useState('');
-  const [filtre,  setFiltre]      = useState('Tout');
+  const { colors, isDark }            = useTheme();
+  const [search,  setSearch]          = useState('');
+  const [filtre,  setFiltre]          = useState('Tout');
+  const [recommandations, setRecommandations] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error,   setError]           = useState(null);
+
+  const fetchRecommandations = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.get('/recommandations');
+      if (res.data.success) {
+        setRecommandations(res.data.data);
+      }
+    } catch (e) {
+      setError('Impossible de charger les recommandations.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecommandations();
+  }, [fetchRecommandations]);
 
   const items = useMemo(() => {
-    let list = RECOMMANDATIONS;
+    let list = recommandations;
     if (filtre !== 'Tout') list = list.filter(r => r.categorie === filtre);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -121,7 +82,7 @@ export const RecommandationsScreen = ({ navigation }) => {
       );
     }
     return list;
-  }, [filtre, search]);
+  }, [recommandations, filtre, search]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -133,8 +94,8 @@ export const RecommandationsScreen = ({ navigation }) => {
           <Ionicons name="arrow-back" size={22} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Recommandations</Text>
-        <TouchableOpacity style={styles.headerBtn} activeOpacity={0.7}>
-          <Ionicons name="options-outline" size={22} color={colors.primary} />
+        <TouchableOpacity style={styles.headerBtn} onPress={fetchRecommandations} activeOpacity={0.7}>
+          <Ionicons name="refresh-outline" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -193,16 +154,36 @@ export const RecommandationsScreen = ({ navigation }) => {
           })}
         </ScrollView>
 
-        {/* Liste */}
-        {items.length === 0 ? (
-          <View style={styles.empty}>
+        {/* Contenu */}
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : error ? (
+          <View style={styles.centered}>
+            <MaterialCommunityIcons name="wifi-off" size={48} color={colors.placeholder} />
+            <Text style={[styles.emptyText, { color: colors.placeholder }]}>{error}</Text>
+            <TouchableOpacity
+              style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+              onPress={fetchRecommandations}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.retryText, { color: colors.onPrimary }]}>Réessayer</Text>
+            </TouchableOpacity>
+          </View>
+        ) : items.length === 0 ? (
+          <View style={styles.centered}>
             <MaterialCommunityIcons name="robot-confused-outline" size={48} color={colors.placeholder} />
-            <Text style={[styles.emptyText, { color: colors.placeholder }]}>Aucune recommandation trouvée</Text>
+            <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+              {recommandations.length === 0
+                ? 'Aucune recommandation pour le moment'
+                : 'Aucun résultat pour cette recherche'}
+            </Text>
           </View>
         ) : (
           <View style={styles.list}>
-            {items.map(item => (
-              <RecoCard key={item.id} item={item} colors={colors} isDark={isDark} />
+            {items.map((item, index) => (
+              <RecoCard key={`${item.categorie}-${index}`} item={item} colors={colors} isDark={isDark} />
             ))}
           </View>
         )}
@@ -278,10 +259,12 @@ const styles = StyleSheet.create({
   cardTime:     { fontSize: 11, fontWeight: '500', marginLeft: 8 },
   cardText:     { fontSize: 14, lineHeight: 21 },
 
-  empty: {
+  centered: {
     alignItems: 'center', paddingVertical: 64, gap: 12,
   },
-  emptyText: { fontSize: 14 },
+  emptyText: { fontSize: 14, textAlign: 'center' },
+  retryBtn:  { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: BORDER_RADIUS.full },
+  retryText: { fontSize: 14, fontWeight: '600' },
 });
 
 export default RecommandationsScreen;

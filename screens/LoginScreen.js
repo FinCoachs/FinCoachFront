@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
@@ -23,16 +24,14 @@ import { ActivityIndicator } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// ─── Remplacez par vos IDs depuis Google Cloud Console ──────────────────────
-// https://console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0
-const GOOGLE_CLIENT_IDS = {
-  webClientId:     '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com',
-  androidClientId: '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com',
-};
+const GOOGLE_WEB_CLIENT_ID = '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com';
+
+const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
+if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
 
 export const LoginScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
-  const { updateUser, user } = useUser();
+  const { updateUser } = useUser();
   const styles = getStyles(colors);
 
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -40,36 +39,44 @@ export const LoginScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
-    clientId:        GOOGLE_CLIENT_IDS.webClientId,
-    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    redirectUri,
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
-      const token = response.authentication?.accessToken;
-      if (!token) return;
-      fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((info) => {
-          updateUser({ fullName: info.name || '', email: info.email || '' });
-          navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-        })
-        .catch(() => Alert.alert('Erreur', 'Impossible de récupérer les informations Google.'));
+      const accessToken = response.authentication?.accessToken;
+      if (!accessToken) return;
+      handleGoogleAuth(accessToken);
     } else if (response?.type === 'error') {
       Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
     }
   }, [response]);
 
-  const handleGoogleLogin = () => {
-    if (GOOGLE_CLIENT_IDS.webClientId.startsWith('VOTRE_')) {
+  const handleGoogleAuth = async (accessToken) => {
+    setIsLoading(true);
+    try {
+      const res = await api.post('/auth/google', { token: accessToken });
+      if (res.data.success) {
+        const { token, user: googleUser } = res.data.data;
+        await AsyncStorage.setItem('userToken', token);
+        updateUser({
+          email:    googleUser.email || '',
+          fullName: googleUser.name  || '',
+        });
+        navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      }
+    } catch (error) {
       Alert.alert(
-        'Configuration requise',
-        'Les identifiants Google OAuth ne sont pas encore configurés.\nConsultez Google Cloud Console pour créer vos Client IDs.',
+        'Erreur Google',
+        error.response?.data?.message || 'Impossible de se connecter avec Google.',
       );
-      return;
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
     promptGoogleAsync();
   };
 
@@ -100,12 +107,12 @@ export const LoginScreen = ({ navigation }) => {
         }
 
         if (response.data.user) {
-          updateUser({ 
-            email: response.data.user.email, 
-            fullName: response.data.user.name || '' 
+          updateUser({
+            email:    response.data.user.email,
+            fullName: response.data.user.name || '',
           });
         } else {
-          updateUser({ email, fullName: user.fullName || email.split('@')[0] });
+          updateUser({ email, fullName: email.split('@')[0] });
         }
         
         navigation.reset({ index: 0, routes: [{ name: 'Main' }] });

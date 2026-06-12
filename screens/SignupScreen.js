@@ -8,11 +8,13 @@ import {
   StatusBar,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 import { SPACING, BORDER_RADIUS, TYPOGRAPHY } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useUser } from '../src/context/UserContext';
@@ -22,11 +24,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// ─── Mêmes IDs que LoginScreen — remplacez avec vos Client IDs Google ────────
-const GOOGLE_CLIENT_IDS = {
-  webClientId:     'VOTRE_WEB_CLIENT_ID.apps.googleusercontent.com',
-  androidClientId: 'VOTRE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-};
+const GOOGLE_WEB_CLIENT_ID = '500247802578-13cve6899n87n65096r2b01m71f4t6a6.apps.googleusercontent.com';
+
+const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
+if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
 
 export const SignupScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
@@ -38,37 +39,47 @@ export const SignupScreen = ({ navigation }) => {
   });
   const [errors, setErrors] = useState({});
 
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
-    clientId:        GOOGLE_CLIENT_IDS.webClientId,
-    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
+    clientId:    GOOGLE_WEB_CLIENT_ID,
+    redirectUri,
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
-      const token = response.authentication?.accessToken;
-      if (!token) return;
-      fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((info) => {
-          updateUser({ fullName: info.name || '', email: info.email || '' });
-          navigation.navigate('ProfileSetup');
-        })
-        .catch(() => Alert.alert('Erreur', 'Impossible de récupérer les informations Google.'));
+      const accessToken = response.authentication?.accessToken;
+      if (!accessToken) return;
+      handleGoogleAuth(accessToken);
     } else if (response?.type === 'error') {
       Alert.alert('Erreur Google', response.error?.message || 'Connexion annulée.');
     }
   }, [response]);
 
-  const handleGoogleSignup = () => {
-    if (GOOGLE_CLIENT_IDS.webClientId.startsWith('VOTRE_')) {
+  const handleGoogleAuth = async (accessToken) => {
+    setIsGoogleLoading(true);
+    try {
+      const res = await api.post('/auth/google', { token: accessToken });
+      if (res.data.success) {
+        const { token, user: googleUser } = res.data.data;
+        await AsyncStorage.setItem('userToken', token);
+        updateUser({
+          email:    googleUser.email || '',
+          fullName: googleUser.name  || '',
+        });
+        navigation.navigate('ProfileSetup');
+      }
+    } catch (error) {
       Alert.alert(
-        'Configuration requise',
-        'Les identifiants Google OAuth ne sont pas encore configurés.\nConsultez Google Cloud Console pour créer vos Client IDs.',
+        'Erreur Google',
+        error.response?.data?.message || 'Impossible de se connecter avec Google.',
       );
-      return;
+    } finally {
+      setIsGoogleLoading(false);
     }
+  };
+
+  const handleGoogleSignup = () => {
     promptGoogleAsync();
   };
 
@@ -180,8 +191,10 @@ export const SignupScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.socialButtonsContainer}>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.8} onPress={handleGoogleSignup}>
-              <Image source={require('../assets/logoext/image.png')} style={styles.googleIcon} />
+            <TouchableOpacity style={styles.socialButton} activeOpacity={0.8} onPress={handleGoogleSignup} disabled={isGoogleLoading}>
+              {isGoogleLoading
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Image source={require('../assets/logoext/image.png')} style={styles.googleIcon} />}
             </TouchableOpacity>
             <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
               <Ionicons name="finger-print-outline" size={24} color={colors.onSurface} />

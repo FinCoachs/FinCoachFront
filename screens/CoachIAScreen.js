@@ -262,7 +262,7 @@ export const CoachIAScreen = ({ navigation }) => {
     }]);
   }, []);
 
-  // Envoi avec streaming
+  // Envoi du message et attente de la réponse JSON
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
     if (!text || isSending) return;
@@ -277,82 +277,41 @@ export const CoachIAScreen = ({ navigation }) => {
     setIsSending(true);
     setIsThinking(true);
 
-    const streamId = `stream-${Date.now()}`;
-
     try {
       const token = await AsyncStorage.getItem('userToken');
 
-      const response = await fetch(`${API_URL}/messages`, {
+      const res = await fetch(`${API_URL}/messages`, {
         method:  'POST',
         headers: {
           Authorization:  `Bearer ${token}`,
           'Content-Type': 'application/json',
-          Accept:         'text/event-stream',
+          Accept:         'application/json',
         },
         body: JSON.stringify({ contenu: text }),
       });
 
-      if (!response.ok) throw new Error('Erreur serveur');
-
-      const reader  = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) throw new Error('Streaming non supporté');
+      const json = await res.json();
 
       setIsThinking(false);
-      setMessages(prev => [...prev, {
-        id:          streamId,
-        expediteur:  'agent',
-        contenu:     '',
-        time:        getTime(),
-        isStreaming: true,
-      }]);
 
-      let fullText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-
-        for (const line of chunk.split('\n')) {
-          let token = '';
-          if (line.startsWith('data: ')) {
-            const raw = line.slice(6).trim();
-            if (raw === '[DONE]') continue;
-            try { token = JSON.parse(raw)?.text ?? raw; }
-            catch { token = raw; }
-          } else {
-            token = line;
-          }
-          if (token) {
-            fullText += token;
-            setMessages(prev => prev.map(m =>
-              m.id === streamId ? { ...m, contenu: fullText } : m
-            ));
-          }
-        }
+      if (json.success && json.data) {
+        setMessages(prev => [...prev, {
+          id:         json.data.id,
+          expediteur: 'agent',
+          contenu:    json.data.contenu,
+          time:       getTime(),
+        }]);
+      } else {
+        throw new Error('Réponse invalide');
       }
-
-      setMessages(prev => prev.map(m =>
-        m.id === streamId ? { ...m, isStreaming: false } : m
-      ));
-
     } catch {
       setIsThinking(false);
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.id !== streamId || m.contenu);
-        const last = filtered[filtered.length - 1];
-        if (last?.id === streamId && !last.contenu) {
-          return [...filtered.slice(0, -1), {
-            ...last,
-            contenu:     "Je rencontre une difficulté technique. Veuillez réessayer.",
-            isStreaming: false,
-          }];
-        }
-        return filtered;
-      });
+      setMessages(prev => [...prev, {
+        id:         `err-${Date.now()}`,
+        expediteur: 'agent',
+        contenu:    "Je rencontre une difficulté technique. Veuillez réessayer.",
+        time:       getTime(),
+      }]);
     } finally {
       setIsSending(false);
     }

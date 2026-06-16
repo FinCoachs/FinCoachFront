@@ -27,7 +27,7 @@ function parseSseChunk(chunk) {
     try {
       const event = JSON.parse(raw);
       if (event.type === 'text_start') hasTextStart = true;
-      if (event.type === 'text_delta' && typeof event.value === 'string') deltas.push(event.value);
+      if (event.type === 'text_delta' && typeof event.delta === 'string') deltas.push(event.delta);
     } catch { /* ligne partielle */ }
   }
   return { hasTextStart, deltas };

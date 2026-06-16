@@ -356,7 +356,7 @@ export const CoachIAScreen = ({ navigation }) => {
   useEffect(() => {
     const init = async () => {
       const storedId = await AsyncStorage.getItem(CONV_ID_KEY);
-      if (storedId) setConvId(storedId);
+      if (storedId) await saveConvId(storedId);
       await Promise.all([loadMessages(storedId), loadConversations()]);
     };
     init();
@@ -432,7 +432,7 @@ export const CoachIAScreen = ({ navigation }) => {
     setIsThinking(true);
 
     const token         = await AsyncStorage.getItem('userToken');
-    const currentConvId = await AsyncStorage.getItem(CONV_ID_KEY);
+    const currentConvId = conversationId;
     const streamMsgId   = `stream-${Date.now()}`;
     let   fullContent   = '';
     let   streamingStarted = false;
@@ -470,7 +470,6 @@ export const CoachIAScreen = ({ navigation }) => {
 
     xhr.onload = async () => {
       setIsThinking(false);
-      setIsSending(false);
       setMessages(prev => prev.map(m =>
         m.id === streamMsgId ? { ...m, isStreaming: false } : m
       ));
@@ -481,6 +480,7 @@ export const CoachIAScreen = ({ navigation }) => {
         }]);
       }
       await fetchLatestConvId(token);
+      setIsSending(false);
     };
 
     xhr.onerror = () => {
@@ -500,7 +500,7 @@ export const CoachIAScreen = ({ navigation }) => {
       message:         text,
       conversation_id: currentConvId || undefined,
     }));
-  }, [inputText, isSending, fetchLatestConvId]);
+  }, [inputText, isSending, fetchLatestConvId, conversationId]);
 
   const handleContentSizeChange = useCallback(() => {
     scrollRef.current?.scrollToEnd({ animated: true });

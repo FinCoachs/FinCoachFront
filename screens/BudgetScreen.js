@@ -77,7 +77,7 @@ const GlobalSummaryCard = ({ totalDepense, totalBudget }) => {
           <Text style={styles.summaryRemainingBold}>
             {remaining.toLocaleString('fr-FR')} FCFA
           </Text>{' '}
-          pour finir le mois.
+          pour dépasser votre plafond du mois.
         </Text>
       </View>
     </View>

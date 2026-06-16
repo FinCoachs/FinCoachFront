@@ -379,7 +379,7 @@ export const ProfileScreen = ({ navigation }) => {
           <Divider colors={colors} />
 
           {/* Notifications (placeholder) */}
-          <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
+          {/* <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
               <View style={[styles.settingIconWrap, { backgroundColor: colors.surfaceContainerHigh }]}>
                 <Ionicons name="notifications-outline" size={18} color={colors.textSecondary} />
@@ -390,11 +390,11 @@ export const ProfileScreen = ({ navigation }) => {
               <Text style={[styles.settingBadge, { color: colors.textSecondary }]}>Bientôt</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.borderLight} />
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </Section>
 
         {/* ── Support ── */}
-        <Section label="SUPPORT" colors={colors}>
+        {/* <Section label="SUPPORT" colors={colors}>
           <TouchableOpacity style={styles.settingRow} activeOpacity={0.7}>
             <View style={styles.settingLeft}>
               <View style={[styles.settingIconWrap, { backgroundColor: colors.surfaceContainerHigh }]}>
@@ -407,7 +407,7 @@ export const ProfileScreen = ({ navigation }) => {
               <Ionicons name="chevron-forward" size={18} color={colors.borderLight} />
             </View>
           </TouchableOpacity>
-        </Section>
+        </Section> */}
 
         {/* ── Déconnexion ── */}
         {activePanel === 'logout' ? (

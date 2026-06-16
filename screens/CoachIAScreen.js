@@ -10,8 +10,9 @@ import { useTheme } from '../src/context/ThemeContext';
 import { SPACING, BORDER_RADIUS, getShadow } from '../src/constants/theme';
 
 const API_URL = 'https://fincoachback.onrender.com/api';
+const CONV_ID_KEY = 'chatConversationId';
 
-const SUGGESTIONS = ['Calculer mon reste à vivre', 'Rapport mensuel', 'Conseils MoMo'];
+const SUGGESTIONS = ['Mon solde actuel', 'Mes dépenses ce mois', 'Conseils épargne'];
 
 // ── Animated background pulse ─────────────────────────────
 
@@ -96,7 +97,9 @@ const MessageBubble = ({ message, colors, isDark }) => {
           <Text style={[styles.msgText, { color: colors.onSurface }]}>{message.contenu}</Text>
           {message.isStreaming && <ThinkingDots colors={colors} />}
         </View>
-        <Text style={[styles.timeText, { color: colors.textSecondary }]}>{message.time}</Text>
+        {message.time ? (
+          <Text style={[styles.timeText, { color: colors.textSecondary }]}>{message.time}</Text>
+        ) : null}
       </View>
     );
   }
@@ -106,12 +109,14 @@ const MessageBubble = ({ message, colors, isDark }) => {
       <View style={[styles.userBubble, { backgroundColor: `${colors.primary}18`, borderColor: `${colors.primary}30` }]}>
         <Text style={[styles.msgText, { color: colors.primary }]}>{message.contenu}</Text>
       </View>
-      <Text style={[styles.timeText, { color: colors.textSecondary, textAlign: 'right' }]}>{message.time}</Text>
+      {message.time ? (
+        <Text style={[styles.timeText, { color: colors.textSecondary, textAlign: 'right' }]}>{message.time}</Text>
+      ) : null}
     </View>
   );
 };
 
-// ── Thinking indicator (avant que le stream démarre) ───────
+// ── Thinking indicator ─────────────────────────────────────
 
 const ThinkingIndicator = ({ colors }) => (
   <View style={[styles.thinkingIndicator, { backgroundColor: colors.glassBg, borderColor: colors.glassBorder }]}>
@@ -173,7 +178,7 @@ const InputBar = ({ value, onChange, onSend, disabled, colors, isDark }) => {
 
 // ── Header ─────────────────────────────────────────────────
 
-const CoachHeader = ({ colors, onHistoryPress, onClearPress }) => (
+const CoachHeader = ({ colors, onClearPress }) => (
   <View style={[styles.header, { backgroundColor: `${colors.surface}CC`, borderBottomColor: colors.borderLight }]}>
     <View style={styles.headerLeft}>
       <View style={[styles.avatarWrap, { borderColor: `${colors.primary}30`, backgroundColor: `${colors.primary}12` }]}>
@@ -181,60 +186,109 @@ const CoachHeader = ({ colors, onHistoryPress, onClearPress }) => (
       </View>
       <Text style={[styles.headerTitle, { color: colors.primary }]}>Coach IA</Text>
     </View>
-    <View style={styles.headerActions}>
-      <TouchableOpacity
-        style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
-        onPress={onHistoryPress}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
-        onPress={onClearPress}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={[styles.headerBtn, { backgroundColor: colors.surfaceContainerHigh, borderColor: colors.border }]}
+      onPress={onClearPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+    </TouchableOpacity>
   </View>
 );
+
+// ── Helpers SSE ────────────────────────────────────────────
+
+/**
+ * Parse les lignes SSE reçues par XHR et retourne les text_delta trouvés.
+ */
+function parseSseChunk(chunk) {
+  const deltas = [];
+  let hasTextStart = false;
+
+  const lines = chunk.split('\n');
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const raw = line.slice(6).trim();
+    if (!raw || raw === '[DONE]') continue;
+
+    try {
+      const event = JSON.parse(raw);
+      if (event.type === 'text_start') hasTextStart = true;
+      if (event.type === 'text_delta' && typeof event.value === 'string') {
+        deltas.push(event.value);
+      }
+    } catch { /* ligne partielle ou malformée */ }
+  }
+
+  return { hasTextStart, deltas };
+}
 
 // ── Screen ─────────────────────────────────────────────────
 
 export const CoachIAScreen = ({ navigation }) => {
-  const { colors, isDark }          = useTheme();
-  const [messages,   setMessages]   = useState([]);
-  const [inputText,  setInputText]  = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-  const [isSending,  setIsSending]  = useState(false);
-  const scrollRef                   = useRef(null);
+  const { colors, isDark }              = useTheme();
+  const [messages,      setMessages]    = useState([]);
+  const [inputText,     setInputText]   = useState('');
+  const [isThinking,    setIsThinking]  = useState(false);
+  const [isSending,     setIsSending]   = useState(false);
+  const [conversationId, setConvId]     = useState(null);
+  const scrollRef                       = useRef(null);
+  const xhrRef                          = useRef(null);
 
   const getTime = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   const welcomeMsg = () => ({
-    id:         'welcome',
-    expediteur: 'agent',
-    contenu:    "Bonjour ! Je suis FinCoach, votre assistant financier personnel. Comment puis-je vous aider aujourd'hui ?",
-    time:       getTime(),
+    id: 'welcome', expediteur: 'agent', time: getTime(),
+    contenu: "Bonjour ! Je suis FinCoach, votre assistant financier personnel. Comment puis-je vous aider aujourd'hui ?",
   });
 
-  const formatMessages = (raw) =>
-    raw.map((m) => ({
-      ...m,
-      time: new Date(m.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    }));
+  // ── Persiste conversation_id ──────────────────────────────
+  const saveConvId = useCallback(async (id) => {
+    setConvId(id);
+    if (id) await AsyncStorage.setItem(CONV_ID_KEY, id);
+    else     await AsyncStorage.removeItem(CONV_ID_KEY);
+  }, []);
 
-  // Chargement de l'historique
-  const loadHistory = useCallback(async () => {
+  // ── Récupère le dernier conversation_id depuis le serveur ─
+  const fetchLatestConvId = useCallback(async (token) => {
     try {
-      const token = await AsyncStorage.getItem('userToken');
-      const res   = await fetch(`${API_URL}/messages`, {
+      const res  = await fetch(`${API_URL}/chat/conversation/latest`, {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
       });
       const json = await res.json();
+      if (json.conversation_id) {
+        await saveConvId(json.conversation_id);
+        return json.conversation_id;
+      }
+    } catch { /* silencieux */ }
+    return null;
+  }, [saveConvId]);
+
+  // ── Chargement de l'historique ────────────────────────────
+  const loadHistory = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const storedId = await AsyncStorage.getItem(CONV_ID_KEY);
+
+      if (!storedId) {
+        setMessages([welcomeMsg()]);
+        return;
+      }
+
+      setConvId(storedId);
+
+      const res  = await fetch(`${API_URL}/chat/conversations/${storedId}/messages`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      });
+      const json = await res.json();
+
       if (json.success && json.data?.length > 0) {
-        setMessages(formatMessages(json.data));
+        setMessages(json.data.map((m, i) => ({
+          id:         `hist-${i}`,
+          expediteur: m.role === 'user' ? 'utilisateur' : 'agent',
+          contenu:    m.content,
+          time:       '',
+        })));
       } else {
         setMessages([welcomeMsg()]);
       }
@@ -245,87 +299,138 @@ export const CoachIAScreen = ({ navigation }) => {
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // Efface l'historique
+  // ── Efface la conversation ────────────────────────────────
   const handleClear = useCallback(async () => {
+    if (xhrRef.current) { xhrRef.current.abort(); xhrRef.current = null; }
+
     try {
       const token = await AsyncStorage.getItem('userToken');
-      await fetch(`${API_URL}/messages`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const storedId = await AsyncStorage.getItem(CONV_ID_KEY);
+      if (storedId) {
+        await fetch(`${API_URL}/chat/conversations/${storedId}`, {
+          method:  'DELETE',
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        });
+      }
     } catch { /* silencieux */ }
-    setMessages([{
-      id:         'cleared',
-      expediteur: 'agent',
-      contenu:    "Historique effacé. Comment puis-je vous aider ?",
-      time:       getTime(),
-    }]);
-  }, []);
 
-  // Envoi du message et attente de la réponse JSON
+    await saveConvId(null);
+    setIsThinking(false);
+    setIsSending(false);
+    setMessages([{
+      id: 'cleared', expediteur: 'agent', time: getTime(),
+      contenu: "Historique effacé. Comment puis-je vous aider ?",
+    }]);
+  }, [saveConvId]);
+
+  // ── Envoi du message avec streaming SSE via XHR ───────────
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
     if (!text || isSending) return;
 
+    // Affiche le message utilisateur immédiatement
     setMessages(prev => [...prev, {
-      id:         Date.now().toString(),
-      expediteur: 'utilisateur',
-      contenu:    text,
-      time:       getTime(),
+      id: Date.now().toString(), expediteur: 'utilisateur',
+      contenu: text, time: getTime(),
     }]);
     setInputText('');
     setIsSending(true);
     setIsThinking(true);
 
-    try {
-      const token = await AsyncStorage.getItem('userToken');
+    const token        = await AsyncStorage.getItem('userToken');
+    const currentConvId = await AsyncStorage.getItem(CONV_ID_KEY);
+    const streamMsgId  = `stream-${Date.now()}`;
+    let   fullContent  = '';
+    let   streamingStarted = false;
 
-      const res = await fetch(`${API_URL}/messages`, {
-        method:  'POST',
-        headers: {
-          Authorization:  `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept:         'application/json',
-        },
-        body: JSON.stringify({ contenu: text }),
-      });
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
 
-      const json = await res.json();
+    xhr.open('POST', `${API_URL}/chat/messages`);
+    xhr.setRequestHeader('Authorization',  `Bearer ${token}`);
+    xhr.setRequestHeader('Content-Type',   'application/json');
+    xhr.setRequestHeader('Accept',         'text/event-stream');
 
-      setIsThinking(false);
+    let processedLength = 0;
 
-      if (json.success && json.data) {
+    xhr.onprogress = () => {
+      const newChunk = xhr.responseText.slice(processedLength);
+      processedLength = xhr.responseText.length;
+
+      const { hasTextStart, deltas } = parseSseChunk(newChunk);
+
+      // Crée la bulle de streaming dès le premier text_start ou text_delta
+      if ((hasTextStart || deltas.length > 0) && !streamingStarted) {
+        streamingStarted = true;
+        setIsThinking(false);
         setMessages(prev => [...prev, {
-          id:         json.data.id,
-          expediteur: 'agent',
-          contenu:    json.data.contenu,
-          time:       getTime(),
+          id: streamMsgId, expediteur: 'agent',
+          contenu: '', time: getTime(), isStreaming: true,
         }]);
-      } else {
-        throw new Error('Réponse invalide');
       }
-    } catch {
+
+      if (deltas.length > 0) {
+        fullContent += deltas.join('');
+        setMessages(prev => prev.map(m =>
+          m.id === streamMsgId ? { ...m, contenu: fullContent } : m
+        ));
+      }
+    };
+
+    xhr.onload = async () => {
       setIsThinking(false);
-      setMessages(prev => [...prev, {
-        id:         `err-${Date.now()}`,
-        expediteur: 'agent',
-        contenu:    "Je rencontre une difficulté technique. Veuillez réessayer.",
-        time:       getTime(),
-      }]);
-    } finally {
       setIsSending(false);
-    }
-  }, [inputText, isSending]);
+
+      // Finalise la bulle de streaming
+      setMessages(prev => prev.map(m =>
+        m.id === streamMsgId ? { ...m, isStreaming: false } : m
+      ));
+
+      // Si aucun texte n'est arrivé (outils seulement sans réponse)
+      if (!streamingStarted) {
+        setMessages(prev => [...prev, {
+          id: `fallback-${Date.now()}`, expediteur: 'agent',
+          contenu: "J'ai analysé vos données. Avez-vous d'autres questions ?",
+          time: getTime(),
+        }]);
+      }
+
+      // Met à jour le conversation_id
+      await fetchLatestConvId(token);
+    };
+
+    xhr.onerror = () => {
+      setIsThinking(false);
+      setIsSending(false);
+      if (!streamingStarted) {
+        setMessages(prev => [...prev, {
+          id: `err-${Date.now()}`, expediteur: 'agent', time: getTime(),
+          contenu: "Impossible de joindre le serveur. Vérifiez votre connexion.",
+        }]);
+      }
+    };
+
+    xhr.onabort = () => {
+      setIsThinking(false);
+      setIsSending(false);
+    };
+
+    xhr.send(JSON.stringify({
+      message:         text,
+      conversation_id: currentConvId || undefined,
+    }));
+  }, [inputText, isSending, fetchLatestConvId]);
+
+  // ── Auto-scroll ───────────────────────────────────────────
+  const handleContentSizeChange = useCallback(() => {
+    scrollRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <AIPulse colors={colors} />
 
-      <CoachHeader
-        colors={colors}
-        onHistoryPress={() => navigation?.navigate('Recommandations')}
-        onClearPress={handleClear}
-      />
+      <CoachHeader colors={colors} onClearPress={handleClear} />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -333,7 +438,7 @@ export const CoachIAScreen = ({ navigation }) => {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          onContentSizeChange={handleContentSizeChange}
         >
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} colors={colors} isDark={isDark} />
@@ -377,7 +482,6 @@ const styles = StyleSheet.create({
     height: 56, borderBottomWidth: 1, zIndex: 10,
   },
   headerLeft:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.stackMd },
-  headerActions: { flexDirection: 'row', gap: SPACING.stackSm },
   avatarWrap: {
     width: 32, height: 32, borderRadius: 16,
     borderWidth: 1, alignItems: 'center', justifyContent: 'center',

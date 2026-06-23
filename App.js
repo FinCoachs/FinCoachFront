@@ -25,7 +25,7 @@ if (Platform.OS === 'android') {
     if (!TaskManager.isTaskDefined(SMS_TASK_NAME)) {
       TaskManager.defineTask(SMS_TASK_NAME, async () => {
         try {
-          const SmsAndroid  = require('react-native-get-sms-android').default;
+          const SmsAndroid  = require('react-native-get-sms-android');
           const OPERATORS   = ['MTN', 'MoMo', 'MOMO', 'Moov', 'MOOV', 'Flooz', 'FLOOZ', 'Celtiis'];
 
           const smsList = await new Promise((resolve, reject) =>

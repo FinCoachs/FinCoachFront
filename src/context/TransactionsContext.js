@@ -51,7 +51,13 @@ export const TransactionsProvider = ({ children }) => {
     setTransactions(prev => prev.filter(t => t.id !== id));
   };
 
-  // Import SMS — local uniquement (les transactions SMS ne sont pas envoyées au back)
+  // Marque une référence SMS comme importée (utilisé après sauvegarde backend)
+  const markSmsRefImported = (ref) => {
+    if (!ref) return;
+    setImportedRefs(prev => new Set([...prev, ref]));
+  };
+
+  // Import SMS local (fallback sans backend)
   const importSmsTransactions = (list) => {
     const newRefs = new Set(importedRefs);
     const toAdd   = [];
@@ -100,6 +106,7 @@ export const TransactionsProvider = ({ children }) => {
       addTransaction,
       deleteTransaction,
       importSmsTransactions,
+      markSmsRefImported,
       isRefImported,
       operatorBalances,
       reload: load,

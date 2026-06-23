@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,9 +25,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_WEB_CLIENT_ID = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID     = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = '145675409082-7klaed69mqpkvvb8j72lag9p8o75pb08.apps.googleusercontent.com';
 
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
+const redirectUri = AuthSession.makeRedirectUri(
+  Platform.OS === 'web' ? {} : { scheme: 'fincoach' }
+);
 if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
 
 export const SignupScreen = ({ navigation }) => {
@@ -43,7 +47,7 @@ export const SignupScreen = ({ navigation }) => {
   const [googleError,     setGoogleError]     = useState('');
 
   const [, response, promptGoogleAsync] = Google.useAuthRequest({
-    clientId:    GOOGLE_WEB_CLIENT_ID,
+    clientId: GOOGLE_WEB_CLIENT_ID,
     redirectUri,
   });
 
@@ -194,9 +198,6 @@ export const SignupScreen = ({ navigation }) => {
                 ? <ActivityIndicator size="small" color={colors.primary} />
                 : <Image source={require('../assets/logoext/image.png')} style={styles.googleIcon} />}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialButton} activeOpacity={0.8}>
-              <Ionicons name="finger-print-outline" size={24} color={colors.onSurface} />
-            </TouchableOpacity>
           </View>
           {!!googleError && (
             <Text style={{ color: colors.error ?? '#ff6b6b', fontSize: 12, textAlign: 'center', marginTop: 8 }}>
@@ -272,9 +273,9 @@ const getStyles = (colors) => StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.divider },
   dividerText: { ...TYPOGRAPHY.sizes.labelSm, color: colors.placeholder, paddingHorizontal: SPACING.md },
 
-  socialButtonsContainer: { flexDirection: 'row', gap: SPACING.stackMd },
+  socialButtonsContainer: { alignItems: 'center' },
   socialButton: {
-    flex: 1, height: 52, borderRadius: 14,
+    width: 52, height: 52, borderRadius: 14,
     backgroundColor: colors.glassBg, borderWidth: 1, borderColor: colors.glassBorder,
     alignItems: 'center', justifyContent: 'center',
   },

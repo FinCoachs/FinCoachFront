@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -162,6 +162,24 @@ export const AddTransactionScreen = ({ navigation }) => {
   const [newCatSaving,   setNewCatSaving]   = useState(false);
 
   const scrollRef = useRef(null);
+
+  // Sync catégorie quand les données API arrivent (les IDs DEFAULT_CATEGORIES ne sont pas valides)
+  useEffect(() => {
+    if (allCategories.length === 0) return;
+    const ids = new Set(allCategories.map(c => String(c.id)));
+    if (!selectedCategoryId || !ids.has(String(selectedCategoryId))) {
+      setSelectedCategoryId(allCategories[0].id);
+    }
+  }, [allCategories]);
+
+  // Sync compte quand les comptes API arrivent
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    const ids = new Set(accounts.map(a => a.id));
+    if (!selectedCompteId || !ids.has(selectedCompteId)) {
+      setSelectedCompteId(accounts[0].id);
+    }
+  }, [accounts]);
 
   // ── Numpad logic ──────────────────────────
   const handleNumPress = (key) => {

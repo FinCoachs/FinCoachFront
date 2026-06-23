@@ -26,8 +26,19 @@ function parseSseChunk(chunk) {
     if (!raw || raw === '[DONE]') continue;
     try {
       const event = JSON.parse(raw);
+      // Format Anthropic natif (Laravel AI → Anthropic SDK)
+      if (event.type === 'content_block_start') hasTextStart = true;
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        deltas.push(event.delta.text ?? '');
+      }
+      // Format simplifié (fallback / autre implémentation)
       if (event.type === 'text_start') hasTextStart = true;
-      if (event.type === 'text_delta' && typeof event.delta === 'string') deltas.push(event.delta);
+      if (event.type === 'text_delta') {
+        if (typeof event.delta === 'string') deltas.push(event.delta);
+        else if (event.delta?.text) deltas.push(event.delta.text);
+      }
+      // Format message_delta avec usage (Anthropic streaming)
+      if (event.type === 'message_start' || event.type === 'message_delta') hasTextStart = true;
     } catch { /* ligne partielle */ }
   }
   return { hasTextStart, deltas };
@@ -186,7 +197,7 @@ const HistoryModal = ({ visible, conversations, currentId, colors, isDark, onSel
   const shadow = getShadow(isDark);
 
   const renderItem = ({ item }) => {
-    const isActive = item.id === currentId;
+    const isActive = String(item.id) === String(currentId);
     return (
       <View style={[
         styles.convRow,
@@ -239,7 +250,7 @@ const HistoryModal = ({ visible, conversations, currentId, colors, isDark, onSel
           {/* List */}
           {conversations.length === 0 ? (
             <View style={styles.emptyHistory}>
-              <MaterialCommunityIcons name="chat-off-outline" size={40} color={colors.textSecondary} />
+              <MaterialCommunityIcons name="message-off-outline" size={40} color={colors.textSecondary} />
               <Text style={[styles.emptyHistoryText, { color: colors.textSecondary }]}>
                 Aucune conversation pour l'instant
               </Text>
@@ -247,7 +258,7 @@ const HistoryModal = ({ visible, conversations, currentId, colors, isDark, onSel
           ) : (
             <FlatList
               data={conversations}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => String(item.id)}
               renderItem={renderItem}
               contentContainerStyle={styles.convList}
               showsVerticalScrollIndicator={false}
@@ -311,9 +322,10 @@ export const CoachIAScreen = ({ navigation }) => {
 
   // ── Persiste conversation_id ──────────────────────────────
   const saveConvId = useCallback(async (id) => {
-    setConvId(id);
-    if (id) await AsyncStorage.setItem(CONV_ID_KEY, id);
-    else     await AsyncStorage.removeItem(CONV_ID_KEY);
+    const strId = id != null ? String(id) : null;
+    setConvId(strId);
+    if (strId) await AsyncStorage.setItem(CONV_ID_KEY, strId);
+    else       await AsyncStorage.removeItem(CONV_ID_KEY);
   }, []);
 
   // ── Charge la liste des conversations ────────────────────
@@ -411,7 +423,7 @@ export const CoachIAScreen = ({ navigation }) => {
     setConversations(prev => prev.filter(c => c.id !== convId));
 
     // Si c'est la conversation active, on repart à zéro
-    if (convId === conversationId) {
+    if (String(convId) === String(conversationId)) {
       await saveConvId(null);
       setMessages([welcomeMsg()]);
       setHistoryVisible(false);

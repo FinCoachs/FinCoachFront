@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,10 @@ import {
   StatusBar,
   TextInput,
   Modal,
+  AppState,
+  Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, BORDER_RADIUS } from '../src/constants/theme';
@@ -261,16 +264,41 @@ const GroupHeader = ({ label, total }) => {
 export const TransactionsScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors);
-  const { transactions } = useTransactions();
+  const { transactions, reload: reloadTransactions } = useTransactions();
 
   const [search, setSearch]                 = useState('');
   const [activeFilter, setActiveFilter]     = useState('Tout');
   const [activeCategory, setActiveCategory] = useState('Toutes');
   const [pickerVisible, setPickerVisible]   = useState(false);
-  const [momoVisible,   setMomoVisible]     = useState(false);
+  const [momoVisible,    setMomoVisible]    = useState(false);
+  const [pendingSmsBadge, setPendingSmsBadge] = useState(0);
   const [viewMode,      setViewMode]        = useState('Mois'); // 'Semaine' | 'Mois'
   const [selMonth, setSelMonth]             = useState(new Date().getMonth());
   const [selYear,  setSelYear]              = useState(new Date().getFullYear());
+
+  // Badge : nombre de SMS financiers en attente (déposés par la tâche de fond)
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const checkPending = async () => {
+      try {
+        const raw = await AsyncStorage.getItem('pending_sms_txs');
+        const list = raw ? JSON.parse(raw) : [];
+        setPendingSmsBadge(list.length);
+      } catch { setPendingSmsBadge(0); }
+    };
+    checkPending();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkPending();
+    });
+    return () => sub.remove();
+  }, []);
+
+  const handleOpenMomo = () => {
+    setMomoVisible(true);
+    // Vider le badge quand l'utilisateur ouvre le modal
+    AsyncStorage.removeItem('pending_sms_txs').catch(() => {});
+    setPendingSmsBadge(0);
+  };
 
   // Plage selon le mode (Semaine = 7 derniers jours, Mois = mois sélectionné)
   const weekStart = useMemo(() => {
@@ -323,11 +351,18 @@ export const TransactionsScreen = ({ navigation }) => {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
               style={[styles.monthBtn, { backgroundColor: colors.inputBg, borderColor: colors.borderLight }]}
-              onPress={() => setMomoVisible(true)}
+              onPress={handleOpenMomo}
               activeOpacity={0.8}
             >
               <Ionicons name="download-outline" size={14} color={colors.textSecondary} />
               <Text style={[styles.monthBtnLabel, { color: colors.textSecondary }]}>SMS</Text>
+              {pendingSmsBadge > 0 && (
+                <View style={styles.smsBadge}>
+                  <Text style={styles.smsBadgeText}>
+                    {pendingSmsBadge > 99 ? '99+' : pendingSmsBadge}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
             {viewMode === 'Mois' && (
               <TouchableOpacity
@@ -354,7 +389,7 @@ export const TransactionsScreen = ({ navigation }) => {
 
       <MomoImportModal
         visible={momoVisible}
-        onClose={() => setMomoVisible(false)}
+        onClose={() => { setMomoVisible(false); reloadTransactions(); }}
       />
 
       <ScrollView
@@ -511,6 +546,13 @@ const getStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
   },
   monthBtnLabel: { fontSize: 12, fontWeight: '600' },
+  smsBadge: {
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3, marginLeft: 2,
+  },
+  smsBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
 
   viewToggle: {
     flexDirection: 'row', borderRadius: BORDER_RADIUS.full,

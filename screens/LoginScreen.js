@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
-  Alert,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,13 +21,16 @@ import { useUser } from '../src/context/UserContext';
 import { Button, Input } from '../src/components';
 import api from '../src/services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_WEB_CLIENT_ID = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID     = '145675409082-qggvknjd865r3gpvlrimig1ioqhu8s2s.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = '145675409082-7klaed69mqpkvvb8j72lag9p8o75pb08.apps.googleusercontent.com';
 
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'fincoach' });
+// Web: détection automatique de l'URL courante; Native: scheme personnalisé
+const redirectUri = AuthSession.makeRedirectUri(
+  Platform.OS === 'web' ? {} : { scheme: 'fincoach' }
+);
 if (__DEV__) console.log('[OAuth] redirectUri:', redirectUri);
 
 export const LoginScreen = ({ navigation }) => {
@@ -46,11 +50,16 @@ export const LoginScreen = ({ navigation }) => {
   });
 
   useEffect(() => {
-    if (response?.type === 'success') {
+    if (!response) return;
+    if (__DEV__) console.log('[OAuth response]', response.type, JSON.stringify(response.authentication));
+    if (response.type === 'success') {
       const accessToken = response.authentication?.accessToken;
-      if (!accessToken) return;
+      if (!accessToken) {
+        setGoogleError('Token Google introuvable. Réessayez.');
+        return;
+      }
       handleGoogleAuth(accessToken);
-    } else if (response?.type === 'error') {
+    } else if (response.type === 'error') {
       setGoogleError(response.error?.message || 'Connexion Google annulée.');
     }
   }, [response]);
@@ -70,14 +79,13 @@ export const LoginScreen = ({ navigation }) => {
       }
     } catch (error) {
       setGoogleError(error.response?.data?.message || 'Impossible de se connecter avec Google.');
+      if (__DEV__) console.error('[Google Auth Backend]', error.response?.data);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    promptGoogleAsync();
-  };
+  const handleGoogleLogin = () => promptGoogleAsync();
 
   const updateField = (field, value) =>
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -198,9 +206,6 @@ export const LoginScreen = ({ navigation }) => {
         <View style={styles.socialButtonsContainer}>
           <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8} onPress={handleGoogleLogin}>
             <Image source={require('../assets/logoext/image.png')} style={styles.socialIconImage} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButtonCircle} activeOpacity={0.8}>
-            <Ionicons name="logo-apple" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
         {!!googleError && (

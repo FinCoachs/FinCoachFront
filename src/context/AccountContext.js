@@ -57,8 +57,11 @@ export const AccountProvider = ({ children }) => {
   const addAccount = async ({ libelle, numero, solde_initial = 0 }) => {
     const res = await api.post('/comptes/', { libelle, numero, solde_initial });
     if (res.data.success) {
+      const newAccount = normalizeAccount(res.data.data, accounts.length);
       setAccounts(prev => [...prev, normalizeAccount(res.data.data, prev.length)]);
+      return newAccount;
     }
+    return null;
   };
 
   const deleteAccount = async (id) => {

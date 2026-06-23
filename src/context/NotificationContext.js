@@ -44,7 +44,6 @@ export const NotificationProvider = ({ children }) => {
         await Notifications.setNotificationChannelAsync('default', {
           name:       'FinCoach',
           importance: Notifications.AndroidImportance.MAX,
-          sound:      'default',
         });
       }
 

@@ -32,7 +32,16 @@
     },
     "plugins": [
       "expo-status-bar",
-      "expo-web-browser"
-    ]
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin"
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4ac1e3df-0fff-45d9-88f7-6aab86f924aa"
+      }
+    },
+    "owner": "eunocks"
   }
 }
